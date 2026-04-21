@@ -41,6 +41,7 @@ The content is organized as follows:
 
 <directory_structure>
 .gitignore
+.npmrc
 components.json
 eslint.config.js
 index.html
@@ -75,9 +76,13 @@ src/hooks/useFavorites.ts
 src/hooks/useIngredients.ts
 src/hooks/useMenu.ts
 src/hooks/useOrders.ts
+src/hooks/useProductStats.ts
 src/hooks/useReviews.ts
 src/hooks/useServiceCall.ts
 src/i18n/config.ts
+src/i18n/locales/en.json
+src/i18n/locales/pl.json
+src/i18n/locales/ua.json
 src/index.css
 src/layouts/BottomNav.tsx
 src/lib/utils.ts
@@ -103,31 +108,30 @@ vite.config.ts
 <files>
 This section contains the contents of the repository's files.
 
-<file path=".gitignore">
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+<file path="src/hooks/useProductStats.ts">
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '../api/supabase'
 
-node_modules
-dist
-dist-ssr
-*.local
+export const useProductStats = (productId: string) => {
+  return useQuery({
+    queryKey: ['productStats', productId],
+    queryFn: async () => {
+      const [reviewsRes, favsRes] = await Promise.all([
+        supabase.from('reviews').select('*', { count: 'exact', head: true }).eq('product_id', productId),
+        supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('product_id', productId)
+      ])
+      
+      return {
+        reviewsCount: reviewsRes.count || 0,
+        likesCount: favsRes.count || 0
+      }
+    }
+  })
+}
+</file>
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+<file path=".npmrc">
+legacy-peer-deps=true
 </file>
 
 <file path="components.json">
@@ -186,8 +190,9 @@ export default defineConfig([
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>bar-pwa</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#000000" />
+    <title>Bar Poznan</title>
   </head>
   <body>
     <div id="root"></div>
@@ -830,7 +835,7 @@ export function GlobalAlert() {
   if (!alertConfig.isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200 px-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200 px-4 pointer-events-auto">
       <div className="relative w-full max-w-sm bg-card border border-border shadow-2xl rounded-2xl p-6 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
         <button 
           onClick={hideAlert}
@@ -852,7 +857,7 @@ export function GlobalAlert() {
         </p>
         
         <Button className="w-full h-12 text-lg rounded-xl" onClick={hideAlert}>
-          {t('ok', 'Зрозуміло')}
+          {t('ok')}
         </Button>
       </div>
     </div>
@@ -944,7 +949,6 @@ export { Tabs, TabsList, TabsTrigger, TabsContent }
 <file path="src/features/auth/AgeVerificationModal.tsx">
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ShieldAlert } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { Button } from '../../components/ui/button'
 
@@ -953,12 +957,10 @@ export function AgeVerificationModal() {
   const { isAgeVerified, verifyAge } = useAppStore()
   const [mounted, setMounted] = useState(false)
 
-  // Чекаємо завантаження компонента на клієнті, щоб перевірити збережений стан (LocalStorage)
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Якщо ще не завантажилось або вік вже підтверджено — нічого не показуємо
   if (!mounted) return null
   if (isAgeVerified) return null
 
@@ -975,10 +977,10 @@ export function AgeVerificationModal() {
         
         <div className="space-y-2">
           <h2 className="text-2xl font-bold tracking-tight text-card-foreground">
-            {t('age_verification_title', 'Вам вже є 18 років?')}
+            {t('age_verification_title')}
           </h2>
           <p className="text-muted-foreground text-sm">
-            {t('age_verification_desc', 'Цей сайт містить інформацію про алкогольну та тютюнову продукцію. Для доступу необхідно підтвердити свій вік.')}
+            {t('age_verification_desc')}
           </p>
         </div>
 
@@ -988,13 +990,13 @@ export function AgeVerificationModal() {
             className="w-full sm:flex-1 border-destructive text-destructive hover:bg-destructive/10" 
             onClick={handleDecline}
           >
-            {t('no_under_18', 'Ні, мені немає 18')}
+            {t('no_under_18')}
           </Button>
           <Button 
             className="w-full sm:flex-1" 
             onClick={verifyAge}
           >
-            {t('yes_over_18', 'Так, мені є 18')}
+            {t('yes_over_18')}
           </Button>
         </div>
       </div>
@@ -1014,17 +1016,6 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
 
-const loginSchema = z.object({
-  email: z.string().email('Некоректний формат email'),
-  password: z.string().min(6, 'Пароль має бути не менше 6 символів').max(50, 'Пароль занадто довгий'),
-})
-
-const registerSchema = z.object({
-  email: z.string().email('Некоректний формат email'),
-  phone: z.string().regex(/^\+?[0-9]{9,15}$/, 'Введіть коректний номер телефону'),
-  password: z.string().min(6, 'Пароль має бути не менше 6 символів').max(50, 'Пароль занадто довгий'),
-})
-
 type ValidationErrors = Record<string, string>
 
 export function AuthForm() {
@@ -1040,6 +1031,17 @@ export function AuthForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [phone, setPhone] = useState('')
+
+  const loginSchema = z.object({
+    email: z.string().email(t('err_invalid_email')),
+    password: z.string().min(6, t('err_password_short')).max(50, t('err_password_long')),
+  })
+
+  const registerSchema = z.object({
+    email: z.string().email(t('err_invalid_email')),
+    phone: z.string().regex(/^\+?[0-9]{9,15}$/, t('err_invalid_phone')),
+    password: z.string().min(6, t('err_password_short')).max(50, t('err_password_long')),
+  })
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1109,16 +1111,16 @@ export function AuthForm() {
   return (
     <div className="w-full max-w-sm mx-auto p-4 space-y-6">
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold">{t('welcome_club', 'Клубна картка')}</h2>
+        <h2 className="text-2xl font-bold">{t('welcome_club')}</h2>
         <p className="text-muted-foreground text-sm">
-          {t('auth_desc', 'Авторизуйтесь, щоб накопичувати бали та отримувати подарунки.')}
+          {t('auth_desc')}
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="login">{t('login', 'Вхід')}</TabsTrigger>
-          <TabsTrigger value="register">{t('register', 'Реєстрація')}</TabsTrigger>
+          <TabsTrigger value="login">{t('login')}</TabsTrigger>
+          <TabsTrigger value="register">{t('register')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="login">
@@ -1126,7 +1128,7 @@ export function AuthForm() {
             <div className="space-y-1">
               <Input
                 type="email"
-                placeholder={t('email', 'Email')}
+                placeholder={t('email')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="username"
@@ -1139,7 +1141,7 @@ export function AuthForm() {
               <div className="relative flex items-center w-full">
                 <Input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder={t('password', 'Пароль')}
+                  placeholder={t('password')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
@@ -1160,7 +1162,7 @@ export function AuthForm() {
             {globalError && <p className="text-sm text-destructive font-medium">{globalError}</p>}
             
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? t('loading', 'Завантаження...') : t('login_btn', 'Увійти')}
+              {isLoading ? t('loading') : t('login_btn')}
             </Button>
           </form>
         </TabsContent>
@@ -1170,7 +1172,7 @@ export function AuthForm() {
             <div className="space-y-1">
               <Input
                 type="email"
-                placeholder={t('email', 'Email')}
+                placeholder={t('email')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
@@ -1182,7 +1184,7 @@ export function AuthForm() {
             <div className="space-y-1">
               <Input
                 type="tel"
-                placeholder={t('phone_format', 'Телефон (напр. +48...)')}
+                placeholder={t('phone_format')}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 autoComplete="tel"
@@ -1195,7 +1197,7 @@ export function AuthForm() {
               <div className="relative flex items-center w-full">
                 <Input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder={t('password', 'Пароль (мін. 6 символів)')}
+                  placeholder={t('password')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="new-password"
@@ -1216,7 +1218,7 @@ export function AuthForm() {
             {globalError && <p className="text-sm text-destructive font-medium">{globalError}</p>}
             
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? t('loading', 'Завантаження...') : t('register_btn', 'Зареєструватися')}
+              {isLoading ? t('loading') : t('register_btn')}
             </Button>
           </form>
         </TabsContent>
@@ -1278,10 +1280,10 @@ export function CartDrawer() {
     if (cart.length === 0) return
     
     if (!tableId) {
-      showAlert(
-        t('attention', 'Увага'), 
-        t('scan_qr_prompt', 'Будь ласка, відскануйте QR-код на столі, щоб зробити замовлення.')
-      )
+      setIsOpen(false)
+      setTimeout(() => {
+        showAlert(t('attention'), t('scan_qr_prompt'))
+      }, 300)
       return
     }
 
@@ -1303,10 +1305,10 @@ export function CartDrawer() {
           }, 3000)
         },
         onError: (error) => {
-          showAlert(
-            t('error', 'Помилка'), 
-            t('error_processing_order', 'Помилка створення замовлення: ') + error.message
-          )
+          setIsOpen(false)
+          setTimeout(() => {
+            showAlert(t('error'), `${t('error_processing_order')}${error.message}`)
+          }, 300)
         }
       }
     )
@@ -1318,12 +1320,12 @@ export function CartDrawer() {
     <Drawer open={isOpen} onOpenChange={setIsOpen}>
       <DrawerTrigger asChild>
         <Button 
-          className="fixed bottom-24 right-4 md:right-8 h-14 w-14 rounded-full shadow-2xl z-50 flex flex-col gap-0" 
+          className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-2xl z-50 p-0" 
           size="icon"
         >
-          <div className="relative">
+          <div className="relative flex items-center justify-center w-full h-full">
             <ShoppingCart className="h-6 w-6" />
-            <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+            <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-[11px] font-bold text-destructive-foreground border-2 border-primary-foreground shadow-sm">
               {totalItems}
             </span>
           </div>
@@ -1332,11 +1334,11 @@ export function CartDrawer() {
       <DrawerContent>
         <DrawerHeader>
           <div className="flex flex-col gap-1">
-            <DrawerTitle>{isSuccess ? t('order_success_title', 'Замовлення прийнято!') : t('your_order', 'Кошик')}</DrawerTitle>
+            <DrawerTitle>{isSuccess ? t('order_success_title') : t('your_order')}</DrawerTitle>
             {user && !isSuccess && (
               <div className="flex items-center gap-1.5 text-xs font-medium text-primary bg-primary/10 w-fit px-2 py-1 rounded-full mx-auto">
                 <Wallet className="h-3 w-3" />
-                {t('your_balance', 'Мій баланс')}: {user.bonus_points} б.
+                {t('your_balance')}: {user.bonus_points}
               </div>
             )}
           </div>
@@ -1345,7 +1347,7 @@ export function CartDrawer() {
         {isSuccess ? (
           <div className="p-8 flex flex-col items-center animate-in fade-in zoom-in">
             <CheckCircle2 className="h-20 w-20 text-primary mb-4" />
-            <p className="text-xl font-semibold text-center">{t('order_success_desc', 'Офіціант вже поспішає до вас!')}</p>
+            <p className="text-xl font-semibold text-center">{t('order_success_desc')}</p>
           </div>
         ) : (
           <>
@@ -1365,7 +1367,7 @@ export function CartDrawer() {
                       </div>
                       <span className={`text-sm font-bold ${item.payWithPoints ? 'text-green-500' : 'text-primary'}`}>
                         {item.payWithPoints 
-                          ? `${item.product.bonus_price! * item.quantity} б.` 
+                          ? `${item.product.bonus_price! * item.quantity}` 
                           : new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(getItemPrice(item))}
                       </span>
                     </div>
@@ -1391,7 +1393,7 @@ export function CartDrawer() {
                           disabled={!item.payWithPoints && !canPayWithPoints}
                         >
                           <Award className="h-3 w-3" />
-                          {item.payWithPoints ? t('by_points', 'Балами') : t('use_points', 'Списати')}
+                          {item.payWithPoints ? t('by_points') : t('use_points')}
                         </Button>
                       )}
                     </div>
@@ -1402,7 +1404,7 @@ export function CartDrawer() {
 
             <DrawerFooter className="border-t">
               <div className="flex flex-col gap-2 mb-4">
-                <p className="text-xs text-muted-foreground uppercase font-bold">{t('add_tip', 'Додати чайові')}</p>
+                <p className="text-xs text-muted-foreground uppercase font-bold">{t('add_tip')}</p>
                 <div className="flex gap-2">
                   {[0, 5, 10, 15].map((percent) => (
                     <Button key={percent} variant={tipPercent === percent ? 'default' : 'outline'} className="flex-1 h-8 text-xs" onClick={() => setTipPercent(percent)} disabled={isPending || baseTotalCash === 0}>
@@ -1413,24 +1415,24 @@ export function CartDrawer() {
               </div>
               <div className="flex flex-col gap-1.5 mb-4 border-b border-dashed pb-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('points_will_earn', 'Отримаєте після оплати')}</span>
-                  <span className="text-sm font-bold text-green-500">+{pointsToEarn} б.</span>
+                  <span className="text-sm text-muted-foreground">{t('points_will_earn')}</span>
+                  <span className="text-sm font-bold text-green-500">+{pointsToEarn}</span>
                 </div>
                 {totalPointsUsed > 0 && (
                   <div className="flex justify-between items-center text-destructive">
-                    <span className="text-sm">{t('points_will_spend', 'Буде списано')}</span>
-                    <span className="text-sm font-bold">-{totalPointsUsed} б.</span>
+                    <span className="text-sm">{t('points_will_spend')}</span>
+                    <span className="text-sm font-bold">-{totalPointsUsed}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center pt-2">
-                  <span className="font-semibold text-lg">{t('total', 'До сплати')}</span>
+                  <span className="font-semibold text-lg">{t('total')}</span>
                   <span className="font-bold text-2xl text-primary">
                     {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(finalTotalCash)}
                   </span>
                 </div>
               </div>
               <Button className="w-full h-12 text-lg" onClick={handleCheckout} disabled={isPending || cart.length === 0}>
-                {isPending ? t('processing', 'Обробка...') : t('confirm_order', 'Замовити')}
+                {isPending ? t('processing') : t('confirm_order')}
               </Button>
             </DrawerFooter>
           </>
@@ -1470,10 +1472,8 @@ export function ConstructorDrawer() {
   const groupedIngredients = useMemo(() => {
     if (!ingredients || !activeConstructorProduct || !categories) return {}
     
-    // Знаходимо категорію поточного продукту
     const category = categories.find(c => c.id === activeConstructorProduct.category_id)
     
-    // Перевіряємо по slug (переконайся, що в базі даних вказані саме такі slug)
     const isHookah = category?.slug === 'hookahs' || category?.slug === 'shisha'
     const isCocktail = category?.slug === 'cocktails'
 
@@ -1521,13 +1521,13 @@ export function ConstructorDrawer() {
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader>
           <DrawerTitle className="text-xl">
-            {activeConstructorProduct.name?.[currentLang] || activeConstructorProduct.name?.pl || 'Кастомний продукт'}
+            {activeConstructorProduct.name?.[currentLang] || activeConstructorProduct.name?.pl || t('custom_product')}
           </DrawerTitle>
         </DrawerHeader>
         <div className="p-4 overflow-y-auto space-y-6 pb-24">
           {Object.entries(groupedIngredients).map(([type, items]) => (
             <div key={type} className="space-y-3">
-              <h3 className="font-semibold text-sm uppercase text-primary tracking-widest">{t(`type_${type}`, type)}</h3>
+              <h3 className="font-semibold text-sm uppercase text-primary tracking-widest">{t(`type_${type}`)}</h3>
               <div className="flex flex-wrap gap-2">
                 {items.map((ing) => {
                   const isSelected = selectedIngredients.some(i => i.id === ing.id)
@@ -1539,7 +1539,7 @@ export function ConstructorDrawer() {
                         isSelected ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card'
                       }`}
                     >
-                      <span className="text-sm font-medium">{ing.name?.[currentLang] || ing.name?.pl || 'Інгредієнт'}</span>
+                      <span className="text-sm font-medium">{ing.name?.[currentLang] || ing.name?.pl || t('ingredient')}</span>
                       {ing.price_extra > 0 && <Badge variant="secondary" className="text-[10px]">+{ing.price_extra}</Badge>}
                     </button>
                   )
@@ -1550,7 +1550,7 @@ export function ConstructorDrawer() {
         </div>
         <DrawerFooter className="absolute bottom-0 w-full bg-background/95 backdrop-blur-md border-t p-4">
           <Button className="w-full h-14 text-lg" onClick={handleAdd}>
-            {t('add_for', 'Додати за')} {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(totalPrice)}
+            {t('add_for')} {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(totalPrice)}
           </Button>
         </DrawerFooter>
       </DrawerContent>
@@ -1573,7 +1573,6 @@ export function CategoryList({ selectedCategoryId, onSelectCategory }: CategoryL
   const { t, i18n } = useTranslation()
   const { data: categories, isLoading, error } = useCategories()
 
-  // Захист від undefined
   const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
 
   if (isLoading) {
@@ -1592,7 +1591,7 @@ export function CategoryList({ selectedCategoryId, onSelectCategory }: CategoryL
   if (error) {
     return (
       <div className="text-destructive px-4 text-sm font-medium">
-        {t('error_loading_categories', 'Помилка завантаження категорій')}
+        {t('error_loading_categories')}
       </div>
     )
   }
@@ -1604,7 +1603,7 @@ export function CategoryList({ selectedCategoryId, onSelectCategory }: CategoryL
         className="rounded-full whitespace-nowrap shrink-0"
         onClick={() => onSelectCategory(null)}
       >
-        {t('all_categories', 'Усі')}
+        {t('all_categories')}
       </Button>
       
       {categories?.map((category) => (
@@ -1614,8 +1613,7 @@ export function CategoryList({ selectedCategoryId, onSelectCategory }: CategoryL
           className="rounded-full whitespace-nowrap shrink-0"
           onClick={() => onSelectCategory(category.id)}
         >
-          {/* Захист через ?. */}
-          {category.name?.[currentLang] || category.name?.pl || '...'}
+          {category.name[currentLang] || category.name.pl}
         </Button>
       ))}
     </div>
@@ -1630,9 +1628,10 @@ import { Product } from '../../types/menu'
 import { Card, CardContent, CardFooter, CardHeader } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
-import { Info, Plus, Settings2, Award, Heart, Tag, ImageIcon } from 'lucide-react'
+import { Info, Plus, Settings2, Award, Heart, Tag, ImageIcon, MessageSquare, ChevronDown } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { useFavorites, useToggleFavorite } from '../../hooks/useFavorites'
+import { useProductStats } from '../../hooks/useProductStats'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '../../components/ui/drawer'
 import { ProductReviews } from './ProductReviews'
 
@@ -1645,14 +1644,18 @@ export function ProductCard({ product }: ProductCardProps) {
   const { user, addToCart, setActiveConstructorProduct, showAlert } = useAppStore()
   const { data: favorites } = useFavorites()
   const { mutate: toggleFavorite } = useToggleFavorite()
+  const { data: stats } = useProductStats(product.id)
   
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [showAllergens, setShowAllergens] = useState(false)
+  
   const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
 
-  const name = product.name?.[currentLang] || product.name?.pl || 'Без назви'
+  const name = product.name?.[currentLang] || product.name?.pl || t('unknown_product')
   const description = product.description?.[currentLang] || product.description?.pl || ''
   const isFavorite = favorites?.includes(product.id)
+  const hasAllergens = product.allergens && product.allergens.length > 0
   
   const formattedPrice = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(product.price || 0)
 
@@ -1670,10 +1673,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!user) {
-      showAlert(
-        t('attention', 'Увага'), 
-        t('auth_required_fav', 'Будь ласка, авторизуйтесь, щоб додати товар в улюблене.')
-      )
+      showAlert(t('attention'), t('auth_required_fav'))
       return
     }
     toggleFavorite({ productId: product.id, isFavorite: !!isFavorite })
@@ -1715,76 +1715,109 @@ export function ProductCard({ product }: ProductCardProps) {
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 pt-0 flex-grow">
-          <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
+        <CardContent className="p-4 pt-0 flex-grow flex flex-col">
+          <p className="text-sm text-muted-foreground line-clamp-2 flex-grow">{description}</p>
+          
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/50 text-muted-foreground">
+            <div className="flex items-center gap-1 text-xs font-medium">
+              <Heart className="h-3.5 w-3.5" /> 
+              {stats?.likesCount || 0}
+            </div>
+            <div className="flex items-center gap-1 text-xs font-medium">
+              <MessageSquare className="h-3.5 w-3.5" /> 
+              {stats?.reviewsCount || 0}
+            </div>
+          </div>
         </CardContent>
 
         <CardFooter className="p-4 pt-0 mt-auto shrink-0">
           <Button className="w-full gap-2" disabled={!product.is_available} onClick={handleAction}>
             {product.is_constructor ? <Settings2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {product.is_available ? (product.is_constructor ? t('customize', 'Зібрати') : t('add_to_order', 'Додати')) : t('out_of_stock', 'Немає в наявності')}
+            {product.is_available ? (product.is_constructor ? t('customize') : t('add_to_order')) : t('out_of_stock')}
           </Button>
         </CardFooter>
       </Card>
 
       <Drawer open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DrawerContent className="max-h-[90vh]">
-          <div className="overflow-y-auto">
-            {product.image_url && (
-              <div className="w-full h-64 bg-muted relative">
-                <img src={product.image_url} alt={name} className="w-full h-full object-cover" />
-              </div>
-            )}
-            <DrawerHeader className="text-left">
-              <div className="flex justify-between items-start mb-2">
+        <DrawerContent className="max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          {/* Статичне фото зверху */}
+          {product.image_url && (
+            <div className="w-full h-56 bg-muted relative shrink-0">
+              <img src={product.image_url} alt={name} className="w-full h-full object-cover" />
+            </div>
+          )}
+          
+          {/* Контент, що скролиться */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            <DrawerHeader className="p-0 text-left">
+              <div className="flex justify-between items-start mb-2 gap-4">
                 <DrawerTitle className="text-2xl">{name}</DrawerTitle>
-                <span className="text-2xl font-bold text-primary">{formattedPrice}</span>
+                <span className="text-2xl font-bold text-primary shrink-0">{formattedPrice}</span>
               </div>
               <p className="text-muted-foreground leading-relaxed">{description}</p>
             </DrawerHeader>
 
-            <div className="p-4 space-y-4">
-              {product.tags && product.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {product.tags.map((tag) => (
-                    <Badge key={tag} variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1">
-                      <Tag className="h-3 w-3" />
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              {product.allergens && product.allergens.length > 0 && (
-                <div className="flex items-start gap-2 bg-secondary/50 p-3 rounded-lg">
-                  <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-sm">{t('allergens', 'Алергени')}</p>
-                    <p className="text-sm text-muted-foreground">{product.allergens.join(', ')}</p>
-                  </div>
-                </div>
-              )}
-
-              {product.bonus_price && (
-                <div className="flex items-center justify-between bg-primary/10 border border-primary/20 p-3 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Award className="h-5 w-5 text-primary" />
-                    <span className="font-medium text-sm">{t('available_for_points', 'Доступно за бали')}</span>
-                  </div>
-                  <span className="font-bold text-primary">{product.bonus_price} б.</span>
-                </div>
-              )}
-              
-              <ProductReviews productId={product.id} />
+            <div className="flex items-center gap-4 text-muted-foreground bg-secondary/30 p-3 rounded-lg">
+              <div className="flex items-center gap-1.5 text-sm font-medium">
+                <Heart className="h-4 w-4 text-red-500" /> 
+                {stats?.likesCount || 0}
+              </div>
+              <div className="flex items-center gap-1.5 text-sm font-medium">
+                <MessageSquare className="h-4 w-4 text-primary" /> 
+                {stats?.reviewsCount || 0}
+              </div>
             </div>
 
-            <DrawerFooter className="border-t border-border mt-4">
-              <Button className="w-full h-14 text-lg gap-2" disabled={!product.is_available} onClick={handleAction}>
-                {product.is_constructor ? <Settings2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                {product.is_available ? (product.is_constructor ? t('customize', 'Зібрати кастомний') : t('add_to_order', 'Додати до кошика')) : t('out_of_stock', 'Немає в наявності')}
-              </Button>
-            </DrawerFooter>
+            {product.tags && product.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {product.tags.map((tag) => (
+                  <Badge key={tag} variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1">
+                    <Tag className="h-3 w-3" />
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Алергени як випадаюче меню */}
+            <div className="bg-secondary/50 rounded-lg overflow-hidden transition-all">
+              <button 
+                onClick={() => setShowAllergens(!showAllergens)}
+                className="w-full flex items-center justify-between p-3 focus:outline-none hover:bg-secondary/70 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Info className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <span className="font-semibold text-sm">{t('allergens', 'Інформація про алергени')}</span>
+                </div>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${showAllergens ? 'rotate-180' : ''}`} />
+              </button>
+              {showAllergens && (
+                <div className="p-3 pt-0 border-t border-border/50 text-sm text-muted-foreground animate-in fade-in slide-in-from-top-2">
+                  {hasAllergens ? product.allergens.join(', ') : t('no_allergens', 'Алергени відсутні')}
+                </div>
+              )}
+            </div>
+
+            {product.bonus_price && (
+              <div className="flex items-center justify-between bg-primary/10 border border-primary/20 p-3 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Award className="h-5 w-5 text-primary" />
+                  <span className="font-medium text-sm">{t('available_for_points')}</span>
+                </div>
+                <span className="font-bold text-primary">{product.bonus_price} б.</span>
+              </div>
+            )}
+            
+            <ProductReviews productId={product.id} />
           </div>
+
+          {/* Статична кнопка знизу */}
+          <DrawerFooter className="border-t border-border p-4 shrink-0 bg-background">
+            <Button className="w-full h-14 text-lg gap-2" disabled={!product.is_available} onClick={handleAction}>
+              {product.is_constructor ? <Settings2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              {product.is_available ? (product.is_constructor ? t('customize') : t('add_to_order')) : t('out_of_stock')}
+            </Button>
+          </DrawerFooter>
         </DrawerContent>
       </Drawer>
     </>
@@ -1795,7 +1828,7 @@ export function ProductCard({ product }: ProductCardProps) {
 <file path="src/features/menu/ProductReviews.tsx">
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Star } from 'lucide-react'
+import { Star, ChevronDown, MessageSquarePlus } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { useProductReviews, useAddReview } from '../../hooks/useReviews'
 import { Button } from '../../components/ui/button'
@@ -1809,10 +1842,27 @@ export function ProductReviews({ productId }: { productId: string }) {
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState('')
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isListOpen, setIsListOpen] = useState(false)
 
-  const maskPhone = (phone?: string | null) => {
-    if (!phone) return t('anonymous', 'Анонім')
-    return phone.replace(/(\d{3})\d{3}(\d{3})/, '$1***$2')
+  // Покращена і безпечна функція маскування телефону
+  const maskPhone = (profileData: any) => {
+    // Дістаємо телефон, навіть якщо Supabase повернув масив
+    const profile = Array.isArray(profileData) ? profileData[0] : profileData
+    const phone = profile?.phone
+
+    if (!phone || phone.trim() === '') return t('anonymous')
+
+    // Очищаємо від пробілів і дефісів для безпечної роботи
+    const cleaned = phone.replace(/[\s-]/g, '')
+    
+    // Якщо номер занадто короткий, просто повертаємо як є
+    if (cleaned.length < 7) return cleaned
+
+    // Залишаємо перші 4 символи (наприклад +481) і останні 2, решту замінюємо на зірочки
+    const visibleStart = cleaned.slice(0, 4)
+    const visibleEnd = cleaned.slice(-2)
+    
+    return `${visibleStart}***${visibleEnd}`
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1821,97 +1871,101 @@ export function ProductReviews({ productId }: { productId: string }) {
       onSuccess: () => {
         setIsFormOpen(false)
         setComment('')
+        setIsListOpen(true)
       }
     })
   }
 
-  // Захист TypeScript: перевіряємо, що reviews точно існує і має довжину > 0
-  const averageRating = reviews && reviews.length > 0 
-    ? (reviews.reduce((acc, rev) => acc + rev.rating, 0) / reviews.length).toFixed(1) 
-    : null
+  const reviewCount = reviews?.length || 0
 
   return (
-    <div className="space-y-4 pt-4 border-t border-border mt-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-bold text-lg">{t('reviews', 'Відгуки')}</h3>
-          {averageRating && (
-            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-              <Star className="h-4 w-4 fill-orange-400 text-orange-400" />
-              <span className="font-medium text-foreground">{averageRating}</span>
-              {/* Захист TypeScript: додаємо опціональний ланцюжок ?. */}
-              <span>({reviews?.length || 0})</span>
-            </div>
-          )}
-        </div>
-        {!isFormOpen && (
-          <Button variant="outline" size="sm" onClick={() => setIsFormOpen(true)}>
-            {t('write_review', 'Написати')}
+    <div className="mt-2 space-y-4">
+      {/* Заголовок відгуків як кнопка-акордеон */}
+      <div className="flex justify-between items-center bg-secondary/20 p-2 rounded-lg border border-border/50">
+        <button 
+          onClick={() => setIsListOpen(!isListOpen)} 
+          className="flex-1 flex items-center gap-2 font-bold text-base px-2 py-1 focus:outline-none"
+        >
+          {t('reviews')} ({reviewCount})
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isListOpen ? 'rotate-180' : ''}`} />
+        </button>
+        
+        {user ? (
+          <Button variant="ghost" size="sm" onClick={() => setIsFormOpen(!isFormOpen)} className="h-8 px-3 text-xs bg-background shadow-sm">
+            <MessageSquarePlus className="h-3.5 w-3.5 mr-1.5" />
+            {t('write_review')}
           </Button>
+        ) : (
+          <span className="text-[10px] text-muted-foreground px-2">{t('auth_required_review')}</span>
         )}
       </div>
 
-      {isFormOpen && (
-        <form onSubmit={handleSubmit} className="bg-muted/50 p-4 rounded-xl space-y-4 animate-in fade-in">
-          {!user ? (
-            <div className="text-center text-sm text-muted-foreground py-2">
-              {t('auth_required_review', 'Увійдіть в профіль, щоб залишити відгук.')}
+      {/* Форма додавання (Компактна) */}
+      {isFormOpen && user && (
+        <form onSubmit={handleSubmit} className="bg-secondary/30 p-3 rounded-xl space-y-3 border border-border animate-in fade-in slide-in-from-top-2">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-medium text-muted-foreground">Оцінка:</span>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button key={star} type="button" onClick={() => setRating(star)} className="focus:outline-none transition-transform hover:scale-110">
+                  <Star className={`h-6 w-6 ${star <= rating ? 'fill-orange-400 text-orange-400' : 'text-muted-foreground/30'}`} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <textarea
+            className="w-full bg-background border border-input rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[60px] resize-none"
+            placeholder={t('review_placeholder')}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+          {isPending ? (
+            <div className="flex justify-center py-1">
+              <span className="text-primary text-xs font-medium">{t('sending')}</span>
             </div>
           ) : (
-            <>
-              <div className="flex justify-center gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button type="button" key={star} onClick={() => setRating(star)} className="focus:outline-none">
-                    <Star className={`h-8 w-8 transition-colors ${rating >= star ? 'fill-orange-400 text-orange-400' : 'text-muted-foreground'}`} />
-                  </button>
-                ))}
-              </div>
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder={t('review_placeholder', 'Поділіться враженнями...')}
-                className="w-full bg-background border border-border rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[80px]"
-                required
-              />
-              <div className="flex gap-2">
-                <Button type="button" variant="ghost" className="flex-1" onClick={() => setIsFormOpen(false)}>
-                  {t('cancel', 'Скасувати')}
-                </Button>
-                <Button type="submit" className="flex-1" disabled={isPending}>
-                  {isPending ? t('sending', 'Відправка...') : t('send', 'Надіслати')}
-                </Button>
-              </div>
-            </>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setIsFormOpen(false)} className="h-8 text-xs">
+                {t('cancel')}
+              </Button>
+              <Button type="submit" size="sm" disabled={isPending || rating === 0} className="h-8 text-xs">
+                {t('send')}
+              </Button>
+            </div>
           )}
         </form>
       )}
 
-      <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
-        {isLoading ? (
-          <p className="text-center text-sm text-muted-foreground">{t('loading', 'Завантаження...')}</p>
-        ) : !reviews?.length ? (
-          <p className="text-center text-sm text-muted-foreground py-4">{t('no_reviews', 'Поки немає відгуків. Будьте першим!')}</p>
-        ) : (
-          reviews.map((review) => (
-            <div key={review.id} className="bg-card border border-border rounded-lg p-3 space-y-2">
-              <div className="flex justify-between items-start">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {maskPhone(review.profiles?.phone)}
-                </span>
-                <div className="flex gap-0.5">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className={`h-3 w-3 ${i < review.rating ? 'fill-orange-400 text-orange-400' : 'text-muted-foreground/30'}`} />
-                  ))}
+      {/* Список коментарів */}
+      {isListOpen && (
+        <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+          {isLoading ? (
+            <p className="text-center text-sm text-muted-foreground py-2">{t('loading')}</p>
+          ) : !reviews || reviews.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-2">{t('no_reviews')}</p>
+          ) : (
+            reviews.map((review) => (
+              <div key={review.id} className="bg-card border border-border rounded-lg p-3 space-y-2 shadow-sm">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {/* Передаємо весь об'єкт profiles, функція сама розбереться */}
+                    {maskPhone(review.profiles)}
+                  </span>
+                  <div className="flex gap-0.5">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className={`h-3 w-3 ${i < review.rating ? 'fill-orange-400 text-orange-400' : 'text-muted-foreground/20'}`} />
+                    ))}
+                  </div>
                 </div>
+                {review.comment && <p className="text-sm leading-snug">{review.comment}</p>}
+                <p className="text-[10px] text-muted-foreground/50">
+                  {new Date(review.created_at).toLocaleDateString(i18n.language)}
+                </p>
               </div>
-              <p className="text-sm">{review.comment}</p>
-              <p className="text-[10px] text-muted-foreground text-right">
-                {new Date(review.created_at).toLocaleDateString(i18n.language)}
-              </p>
-            </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1948,25 +2002,25 @@ export function OrderHistoryDrawer({ isOpen, onClose }: OrderHistoryDrawerProps)
   }
 
   const getProductName = (productId: string) => {
-    if (!allProducts) return t('unknown_product', 'Невідомий товар')
+    if (!allProducts) return t('unknown_product')
     const product = allProducts.find(p => p.id === productId)
-    if (!product) return t('unknown_product', 'Невідомий товар')
-    return product.name?.[currentLang] || product.name?.pl || t('unknown_product', 'Невідомий товар')
+    if (!product) return t('unknown_product')
+    return product.name?.[currentLang] || product.name?.pl || t('unknown_product')
   }
 
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader>
-          <DrawerTitle>{t('order_history', 'Історія замовлень')}</DrawerTitle>
+          <DrawerTitle>{t('order_history')}</DrawerTitle>
         </DrawerHeader>
         
         <div className="p-4 space-y-4 overflow-y-auto pb-8">
           {isLoading ? (
-            <div className="text-center text-muted-foreground">{t('loading', 'Завантаження...')}</div>
+            <div className="text-center text-muted-foreground">{t('loading')}</div>
           ) : !orders || orders.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
-              {t('no_orders', 'У вас ще немає замовлень.')}
+              {t('no_orders')}
             </div>
           ) : (
             orders.map((order) => (
@@ -1983,7 +2037,7 @@ export function OrderHistoryDrawer({ isOpen, onClose }: OrderHistoryDrawerProps)
                       })}
                     </p>
                     <Badge variant="secondary" className={`mt-2 border-transparent ${getStatusColor(order.status)}`}>
-                      {String(t(`status_${order.status}`, order.status))}
+                      {String(t(`status_${order.status}`))}
                     </Badge>
                   </div>
                   <div className="text-right">
@@ -1991,13 +2045,13 @@ export function OrderHistoryDrawer({ isOpen, onClose }: OrderHistoryDrawerProps)
                       {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(order.total_price)}
                     </p>
                     {order.points_earned > 0 && (
-                      <p className="text-xs text-green-500 font-medium mt-1">+{order.points_earned} балів</p>
+                      <p className="text-xs text-green-500 font-medium mt-1">+{order.points_earned}</p>
                     )}
                   </div>
                 </div>
                 
                 <div className="pt-3 border-t border-border/50">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">{t('order_details', 'Деталі замовлення')}</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">{t('order_details')}</p>
                   <ul className="space-y-1">
                     {Array.isArray(order.items) && order.items.map((item: any, index: number) => (
                       <li key={index} className="flex justify-between text-sm">
@@ -2006,7 +2060,7 @@ export function OrderHistoryDrawer({ isOpen, onClose }: OrderHistoryDrawerProps)
                           {item.is_custom && <span className="text-primary ml-1">*</span>}
                         </span>
                         <span className="font-medium text-muted-foreground">
-                          {item.price === 0 ? t('by_points', 'За бали') : new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(item.price * item.quantity)}
+                          {item.price === 0 ? t('by_points') : new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(item.price * item.quantity)}
                         </span>
                       </li>
                     ))}
@@ -2054,12 +2108,12 @@ export function ReferralDrawer({ isOpen, onClose }: ReferralDrawerProps) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: t('share_title', 'Приєднуйся до Bar Poznan!'),
-          text: t('share_desc', 'Зареєструйся за моїм посиланням і отримай бонуси на перше замовлення!'),
+          title: t('share_title'),
+          text: t('share_desc'),
           url: referralLink,
         })
       } catch (error) {
-        console.log('Помилка при шерингу', error)
+        console.log(error)
       }
     } else {
       handleCopy()
@@ -2070,9 +2124,9 @@ export function ReferralDrawer({ isOpen, onClose }: ReferralDrawerProps) {
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DrawerContent>
         <DrawerHeader className="text-center">
-          <DrawerTitle>{t('referral_program', 'Запросити друга')}</DrawerTitle>
+          <DrawerTitle>{t('referral_program')}</DrawerTitle>
           <DrawerDescription>
-            {t('referral_rules', 'Поділися цим посиланням. Коли твій друг зробить своє перше замовлення, ти отримаєш 50 бонусів!')}
+            {t('referral_rules')}
           </DrawerDescription>
         </DrawerHeader>
         
@@ -2084,11 +2138,11 @@ export function ReferralDrawer({ isOpen, onClose }: ReferralDrawerProps) {
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1" onClick={handleCopy}>
               {copied ? <Check className="h-4 w-4 mr-2 text-green-500" /> : <Copy className="h-4 w-4 mr-2" />}
-              {copied ? t('copied', 'Скопійовано') : t('copy_link', 'Копіювати')}
+              {copied ? t('copied') : t('copy_link')}
             </Button>
             <Button className="flex-1" onClick={handleShare}>
               <Share2 className="h-4 w-4 mr-2" />
-              {t('share', 'Поділитися')}
+              {t('share')}
             </Button>
           </div>
         </div>
@@ -2116,11 +2170,14 @@ import {
 
 export function CallStaffDrawer() {
   const { t } = useTranslation()
-  const { tableId, lastServiceCallTime, setLastServiceCallTime, showAlert } = useAppStore()
+  const { tableId, lastServiceCallTime, setLastServiceCallTime, showAlert, cart } = useAppStore()
   const { mutate: callStaff, isPending } = useServiceCall()
   const [isOpen, setIsOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState<number>(0)
+
+  // Перевіряємо, чи видимий зараз кошик (щоб знати, куди посунути кнопку)
+  const isCartVisible = cart.length > 0
 
   useEffect(() => {
     if (!isOpen || !lastServiceCallTime) return
@@ -2143,32 +2200,21 @@ export function CallStaffDrawer() {
   }, [isOpen, lastServiceCallTime])
 
   const handleCall = (type: 'waiter' | 'barman' | 'shisha') => {
-    if (timeLeft > 0) return
-
-    if (!tableId) {
-      showAlert(
-        t('attention', 'Увага'), 
-        t('scan_qr_prompt', 'Будь ласка, відскануйте QR-код на столі.')
-      )
-      return
-    }
+    if (timeLeft > 0 || !tableId) return
 
     callStaff(
       { tableId, type },
       {
         onSuccess: () => {
           setLastServiceCallTime(Date.now())
-          setSuccessMessage(t('staff_called_success', 'Персонал вже прямує до вас!'))
+          setSuccessMessage(t('staff_called_success'))
           setTimeout(() => {
             setIsOpen(false)
             setSuccessMessage(null)
           }, 3000)
         },
         onError: (error) => {
-          showAlert(
-            t('error', 'Помилка'), 
-            t('error_calling_staff', 'Помилка виклику персоналу: ') + error.message
-          )
+          showAlert(t('error'), `${t('error_calling_staff')}${error.message}`)
         }
       }
     )
@@ -2179,8 +2225,16 @@ export function CallStaffDrawer() {
       <DrawerTrigger asChild>
         <Button
           variant="secondary"
-          className="fixed bottom-24 left-4 md:bottom-6 md:left-8 h-14 w-14 rounded-full shadow-2xl z-50"
+          className={`fixed right-4 h-14 w-14 rounded-full shadow-2xl z-50 transition-all duration-300 ${
+            isCartVisible ? 'bottom-40' : 'bottom-24'
+          }`}
           size="icon"
+          onClick={(e) => {
+            if (!tableId) {
+              e.preventDefault()
+              showAlert(t('attention'), t('scan_qr_prompt'))
+            }
+          }}
         >
           <Bell className="h-6 w-6" />
         </Button>
@@ -2188,11 +2242,11 @@ export function CallStaffDrawer() {
       <DrawerContent>
         <div className="mx-auto w-full max-w-sm pb-6">
           <DrawerHeader>
-            <DrawerTitle className="text-center">{t('call_staff', 'Покликати персонал')}</DrawerTitle>
+            <DrawerTitle className="text-center">{t('call_staff')}</DrawerTitle>
             <DrawerDescription className="text-center">
               {timeLeft > 0 
-                ? t('cooldown_active', 'Зачекайте перед наступним викликом') 
-                : t('choose_staff_type', 'Кого саме ви хочете покликати?')}
+                ? t('cooldown_active') 
+                : t('choose_staff_type')}
             </DrawerDescription>
           </DrawerHeader>
           
@@ -2206,7 +2260,7 @@ export function CallStaffDrawer() {
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground animate-in fade-in">
                 <Clock className="h-16 w-16 mb-4" />
                 <p className="text-2xl font-bold">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
-                <p className="text-sm mt-2">{t('please_wait', 'Будь ласка, зачекайте')}</p>
+                <p className="text-sm mt-2">{t('please_wait')}</p>
               </div>
             ) : (
               <>
@@ -2217,7 +2271,7 @@ export function CallStaffDrawer() {
                   disabled={isPending}
                 >
                   <Coffee className="h-6 w-6 text-primary" />
-                  {t('waiter', 'Офіціанта')}
+                  {t('waiter')}
                 </Button>
                 
                 <Button 
@@ -2227,7 +2281,7 @@ export function CallStaffDrawer() {
                   disabled={isPending}
                 >
                   <GlassWater className="h-6 w-6 text-primary" />
-                  {t('bartender', 'Бармена')}
+                  {t('bartender')}
                 </Button>
 
                 <Button 
@@ -2237,7 +2291,7 @@ export function CallStaffDrawer() {
                   disabled={isPending}
                 >
                   <Wind className="h-6 w-6 text-primary" />
-                  {t('shisha_master', 'Кальянного майстра')}
+                  {t('shisha_master')}
                 </Button>
               </>
             )}
@@ -2278,7 +2332,7 @@ export function useAuth() {
     return () => subscription.unsubscribe()
   }, [setUser])
 
-async function fetchProfile(userId: string) {
+  async function fetchProfile(userId: string) {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -2287,8 +2341,7 @@ async function fetchProfile(userId: string) {
         .single()
 
       if (error) {
-        console.error('Помилка завантаження профілю:', error.message)
-        // Якщо профілю фізично немає, можливо варто зробити signOut або створити його
+        console.error('Error fetching profile:', error.message)
         return
       }
 
@@ -2296,7 +2349,7 @@ async function fetchProfile(userId: string) {
         setUser(data as UserProfile)
       }
     } catch (err) {
-      console.error('Неочікувана помилка при отриманні профілю:', err)
+      console.error('Unexpected error fetching profile:', err)
     }
   }
 }
@@ -2363,7 +2416,7 @@ export const useToggleFavorite = () => {
 
   return useMutation({
     mutationFn: async ({ productId, isFavorite }: { productId: string, isFavorite: boolean }) => {
-      if (!user) throw new Error('Not logged in')
+      if (!user) throw new Error('auth_required')
       if (isFavorite) {
         await supabase.from('favorites').delete().eq('user_id', user.id).eq('product_id', productId)
       } else {
@@ -2388,9 +2441,10 @@ export const useFavoriteProducts = () => {
       if (!favs || favs.length === 0) return []
       
       const productIds = favs.map(f => f.product_id)
-      const { data, error } = await supabase.from('products').select('*').in('id', productIds).eq('is_available', true)
+      const { data: products, error } = await supabase.from('products').select('*').in('id', productIds).eq('is_available', true)
+      
       if (error) throw new Error(error.message)
-      return data as Product[]
+      return products as Product[]
     },
     enabled: !!user,
   })
@@ -2557,7 +2611,7 @@ export const useAddReview = () => {
 
   return useMutation({
     mutationFn: async ({ productId, rating, comment }: { productId: string, rating: number, comment: string }) => {
-      if (!user) throw new Error('Необхідна авторизація')
+      if (!user) throw new Error('auth_required')
       
       const { error } = await supabase
         .from('reviews')
@@ -2567,7 +2621,7 @@ export const useAddReview = () => {
           rating, 
           comment 
         }, {
-          onConflict: 'product_id,user_id' // Вказуємо ключі для конфлікту
+          onConflict: 'product_id,user_id'
         })
         
       if (error) throw new Error(error.message)
@@ -2609,20 +2663,409 @@ export const useServiceCall = () => {
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
+import pl from './locales/pl.json'
+import ua from './locales/ua.json'
+import en from './locales/en.json'
+
 i18n.use(initReactI18next).init({
-  fallbackLng: 'pl',
-  lng: 'pl',
+  fallbackLng: 'pl', // Якщо мова невідома, показуватиме польську
+  lng: 'pl',         // Початкова мова за замовчуванням
   resources: {
-    pl: { translation: { "welcome": "Witaj w barze!" } },
-    ua: { translation: { "welcome": "Вітаємо у барі!" } },
-    en: { translation: { "welcome": "Welcome to the bar!" } },
+    pl,
+    ua,
+    en
   },
   interpolation: {
-    escapeValue: false,
+    escapeValue: false, // React вже захищає від XSS
   },
 })
 
 export default i18n
+</file>
+
+<file path="src/i18n/locales/en.json">
+{
+  "translation": {
+    "attention": "Attention",
+    "error": "Error",
+    "loading": "Loading...",
+    "cancel": "Cancel",
+    "ok": "OK",
+    "table": "Table",
+    "phone": "Phone",
+    "email": "Email",
+    "password": "Password",
+
+    "menu": "Menu",
+    "favorites": "Favorites",
+    "profile": "Profile",
+    "settings": "Settings",
+
+    "age_verification_title": "Are you 18 or older?",
+    "age_verification_desc": "This site contains information about alcohol and tobacco products. To access, you must verify your age.",
+    "no_under_18": "No, I am under 18",
+    "yes_over_18": "Yes, I am 18+",
+
+    "welcome_club": "Club Card",
+    "auth_desc": "Log in to collect points and receive gifts.",
+    "login": "Log in",
+    "register": "Register",
+    "login_btn": "Log in",
+    "register_btn": "Register",
+    "phone_format": "Phone (e.g. +48...)",
+    "your_bonuses": "Your bonuses",
+    "points_available": "points available to use",
+    "not_set": "Not set",
+
+    "your_order": "Cart",
+    "your_balance": "My balance",
+    "by_points": "By points",
+    "use_points": "Use points",
+    "add_tip": "Add tip",
+    "points_will_earn": "Points to earn",
+    "points_will_spend": "Points to spend",
+    "total": "Total",
+    "processing": "Processing...",
+    "confirm_order": "Order",
+    "order_success_title": "Order received!",
+    "order_success_desc": "The waiter is on the way!",
+    "error_processing_order": "Error processing order: ",
+    "scan_qr_prompt": "Please scan the QR code on the table to place an order.",
+
+    "menu_categories": "Menu",
+    "search_placeholder": "Search drinks and shisha...",
+    "no_search_results": "No results found",
+    "top_sales": "Top sales",
+    "all_categories": "All",
+    "error_loading_categories": "Error loading categories",
+    "no_products_found": "No products found in this category",
+    "customize": "Customize",
+    "add_to_order": "Add",
+    "out_of_stock": "Out of stock",
+    "allergens": "Allergens",
+    "available_for_points": "Available for points",
+    "add_for": "Add for",
+
+    "type_tobacco": "Tobacco",
+    "type_bowl": "Bowl",
+    "type_base": "Base",
+    "type_alcohol": "Alcohol",
+    "type_mixer": "Mixer",
+
+    "auth_required": "Authorization required",
+    "auth_fav_desc": "Log in to save your favorite drinks and shisha.",
+    "no_favorites": "You haven't added any favorite products yet",
+    "auth_required_fav": "Please log in to add to favorites.",
+
+    "reviews": "Reviews",
+    "write_review": "Write a review",
+    "auth_required_review": "Log in to leave a review.",
+    "review_placeholder": "Share your experience...",
+    "sending": "Sending...",
+    "send": "Send",
+    "no_reviews": "No reviews yet. Be the first!",
+    "anonymous": "Anonymous",
+
+    "order_history": "Order history",
+    "no_orders": "You don't have any orders yet.",
+    "order_details": "Order details",
+    "unknown_product": "Unknown product",
+    "status_pending": "Pending",
+    "status_preparing": "Preparing",
+    "status_completed": "Completed",
+    "status_cancelled": "Cancelled",
+
+    "referral_program": "Refer a friend",
+    "referral_rules": "Share this link. When your friend makes their first order, you get 50 bonus points!",
+    "copy_link": "Copy link",
+    "copied": "Copied",
+    "share": "Share",
+    "share_title": "Join Bar Poznan!",
+    "share_desc": "Register with my link and get bonuses for your first order!",
+
+    "call_staff": "Call staff",
+    "choose_staff_type": "Who do you want to call?",
+    "waiter": "Waiter",
+    "bartender": "Bartender",
+    "shisha_master": "Shisha Master",
+    "cooldown_active": "Wait before next call",
+    "please_wait": "Please wait",
+    "staff_called_success": "Staff is on the way!",
+    "error_calling_staff": "Error calling staff: ",
+
+    "language": "Language",
+    "theme": "Theme",
+    "light_mode": "Light",
+    "dark_mode": "Dark",
+    "about_us": "About us",
+    "legal_info": "Legal info",
+    "address_title": "Address",
+    "hours_title": "Opening hours",
+    "terms_of_service": "Terms of Service",
+    "terms_short": "Terms",
+    "privacy_policy": "Privacy Policy",
+    "privacy_short": "Privacy"
+  }
+}
+</file>
+
+<file path="src/i18n/locales/pl.json">
+{
+  "translation": {
+    "attention": "Uwaga",
+    "error": "Błąd",
+    "loading": "Ładowanie...",
+    "cancel": "Anuluj",
+    "ok": "Zrozumiałem",
+    "table": "Stolik",
+    "phone": "Telefon",
+    "email": "Email",
+    "password": "Hasło",
+
+    "menu": "Menu",
+    "favorites": "Ulubione",
+    "profile": "Profil",
+    "settings": "Ustawienia",
+
+    "age_verification_title": "Masz już 18 lat?",
+    "age_verification_desc": "Ta strona zawiera informacje o wyrobach alkoholowych i tytoniowych. Aby uzyskać dostęp, musisz potwierdzić swój wiek.",
+    "no_under_18": "Nie, nie mam 18 lat",
+    "yes_over_18": "Tak, mam 18 lat",
+
+    "welcome_club": "Karta klubowa",
+    "auth_desc": "Zaloguj się, aby zbierać punkty i odbierać prezenty.",
+    "login": "Zaloguj",
+    "register": "Zarejestruj się",
+    "login_btn": "Zaloguj się",
+    "register_btn": "Zarejestruj się",
+    "phone_format": "Telefon (np. +48...)",
+    "your_bonuses": "Twoje bonusy",
+    "points_available": "punktów dostępnych do wykorzystania",
+    "not_set": "Nie podano",
+
+    "your_order": "Koszyk",
+    "your_balance": "Mój balans",
+    "by_points": "Za punkty",
+    "use_points": "Wykorzystaj",
+    "add_tip": "Dodaj napiwek",
+    "points_will_earn": "Otrzymasz po opłaceniu",
+    "points_will_spend": "Zostanie pobrane",
+    "total": "Do zapłaty",
+    "processing": "Przetwarzanie...",
+    "confirm_order": "Zamów",
+    "order_success_title": "Zamówienie przyjęte!",
+    "order_success_desc": "Kelner już do Ciebie śpieszy!",
+    "error_processing_order": "Błąd podczas składania zamówienia: ",
+    "scan_qr_prompt": "Zeskanuj kod QR na stoliku, aby złożyć zamówienie.",
+
+    "menu_categories": "Menu",
+    "search_placeholder": "Szukaj napojów i shishy...",
+    "no_search_results": "Nic nie znaleziono",
+    "top_sales": "Bestsellery",
+    "all_categories": "Wszystkie",
+    "error_loading_categories": "Błąd ładowania kategorii",
+    "no_products_found": "W tej kategorii nie ma jeszcze produktów",
+    "customize": "Skomponuj",
+    "add_to_order": "Dodaj",
+    "out_of_stock": "Brak w magazynie",
+    "allergens": "Alergeny",
+    "available_for_points": "Dostępne za punkty",
+    "add_for": "Dodaj za",
+
+    "type_tobacco": "Tytoń",
+    "type_bowl": "Cybuszek",
+    "type_base": "Baza",
+    "type_alcohol": "Alkohol",
+    "type_mixer": "Dodatek",
+
+    "auth_required": "Wymagana autoryzacja",
+    "auth_fav_desc": "Zaloguj się, aby zapisywać ulubione napoje i shishę.",
+    "no_favorites": "Nie masz jeszcze ulubionych produktów",
+    "auth_required_fav": "Zaloguj się, aby dodać do ulubionych.",
+
+    "reviews": "Opinie",
+    "write_review": "Napisz opinię",
+    "auth_required_review": "Zaloguj się, aby zostawić opinię.",
+    "review_placeholder": "Podziel się swoimi wrażeniami...",
+    "sending": "Wysyłanie...",
+    "send": "Wyślij",
+    "no_reviews": "Brak opinii. Bądź pierwszy!",
+    "anonymous": "Anonim",
+
+    "order_history": "Historia zamówień",
+    "no_orders": "Nie masz jeszcze żadnych zamówień.",
+    "order_details": "Szczegóły zamówienia",
+    "unknown_product": "Nieznany produkt",
+    "status_pending": "Oczekujące",
+    "status_preparing": "W przygotowaniu",
+    "status_completed": "Zakończone",
+    "status_cancelled": "Anulowane",
+
+    "referral_program": "Zaproś znajomego",
+    "referral_rules": "Udostępnij ten link. Kiedy Twój znajomy złoży pierwsze zamówienie, otrzymasz 50 punktów bonusowych!",
+    "copy_link": "Kopiuj link",
+    "copied": "Skopiowano",
+    "share": "Udostępnij",
+    "share_title": "Dołącz do Bar Poznan!",
+    "share_desc": "Zarejestruj się z mojego linku i odbierz bonusy na pierwsze zamówienie!",
+
+    "call_staff": "Wezwij obsługę",
+    "choose_staff_type": "Kogo chcesz wezwać?",
+    "waiter": "Kelnera",
+    "bartender": "Barmana",
+    "shisha_master": "Shisha Mastera",
+    "cooldown_active": "Poczekaj przed kolejnym wezwaniem",
+    "please_wait": "Proszę czekać",
+    "staff_called_success": "Obsługa jest w drodze!",
+    "error_calling_staff": "Błąd wzywania obsługi: ",
+
+    "language": "Język",
+    "theme": "Motyw",
+    "light_mode": "Jasny",
+    "dark_mode": "Ciemny",
+    "about_us": "O nas",
+    "legal_info": "Informacje prawne",
+    "address_title": "Adres",
+    "hours_title": "Godziny otwarcia",
+    "terms_of_service": "Regulamin lokalu",
+    "terms_short": "Regulamin",
+    "privacy_policy": "Polityka prywatności",
+    "privacy_short": "Prywatność"
+  }
+}
+</file>
+
+<file path="src/i18n/locales/ua.json">
+{
+  "translation": {
+    "attention": "Увага",
+    "error": "Помилка",
+    "loading": "Завантаження...",
+    "cancel": "Скасувати",
+    "ok": "Зрозуміло",
+    "table": "Стіл",
+    "phone": "Телефон",
+    "email": "Email",
+    "password": "Пароль",
+
+    "menu": "Меню",
+    "favorites": "Улюблене",
+    "profile": "Профіль",
+    "settings": "Налаштування",
+
+    "age_verification_title": "Вам вже є 18 років?",
+    "age_verification_desc": "Цей сайт містить інформацію про алкогольну та тютюнову продукцію. Для доступу необхідно підтвердити свій вік.",
+    "no_under_18": "Ні, мені немає 18",
+    "yes_over_18": "Так, мені є 18",
+
+    "welcome_club": "Клубна картка",
+    "auth_desc": "Авторизуйтесь, щоб накопичувати бали та отримувати подарунки.",
+    "login": "Вхід",
+    "register": "Реєстрація",
+    "login_btn": "Увійти",
+    "register_btn": "Зареєструватися",
+    "phone_format": "Телефон (напр. +48...)",
+    "your_bonuses": "Ваші бонуси",
+    "points_available": "балів доступно для використання",
+    "not_set": "Не вказано",
+
+    "your_order": "Кошик",
+    "your_balance": "Мій баланс",
+    "by_points": "Балами",
+    "use_points": "Списати",
+    "add_tip": "Додати чайові",
+    "points_will_earn": "Отримаєте після оплати",
+    "points_will_spend": "Буде списано",
+    "total": "До сплати",
+    "processing": "Обробка...",
+    "confirm_order": "Замовити",
+    "order_success_title": "Замовлення прийнято!",
+    "order_success_desc": "Офіціант вже поспішає до вас!",
+    "error_processing_order": "Помилка створення замовлення: ",
+    "scan_qr_prompt": "Будь ласка, відскануйте QR-код на столі, щоб зробити замовлення.",
+
+    "menu_categories": "Меню",
+    "search_placeholder": "Пошук напоїв та кальянів...",
+    "no_search_results": "За вашим запитом нічого не знайдено",
+    "top_sales": "Топ продажів",
+    "all_categories": "Усі",
+    "error_loading_categories": "Помилка завантаження категорій",
+    "no_products_found": "У цій категорії поки немає товарів",
+    "customize": "Зібрати",
+    "add_to_order": "Додати",
+    "out_of_stock": "Немає в наявності",
+    "allergens": "Інформація про алергени",
+    "no_allergens": "Алергени відсутні",
+    "available_for_points": "Доступно за бали",
+    "add_for": "Додати за",
+
+    "type_tobacco": "Тютюн",
+    "type_bowl": "Чаша",
+    "type_base": "Колба",
+    "type_alcohol": "Алкоголь",
+    "type_mixer": "Міксер",
+
+    "auth_required": "Потрібна авторизація",
+    "auth_fav_desc": "Увійдіть, щоб зберігати свої улюблені напої та кальяни.",
+    "no_favorites": "Ви ще не додали жодного товару в улюблене",
+    "auth_required_fav": "Будь ласка, авторизуйтесь, щоб додати товар в улюблене.",
+
+    "reviews": "Відгуки",
+    "write_review": "Написати",
+    "auth_required_review": "Увійдіть в профіль, щоб залишити відгук.",
+    "review_placeholder": "Поділіться враженнями...",
+    "sending": "Відправка...",
+    "send": "Надіслати",
+    "no_reviews": "Поки немає відгуків. Будьте першим!",
+    "anonymous": "Анонім",
+
+    "order_history": "Історія замовлень",
+    "no_orders": "У вас ще немає замовлень.",
+    "order_details": "Деталі замовлення",
+    "unknown_product": "Невідомий товар",
+    "status_pending": "Очікує",
+    "status_preparing": "Готується",
+    "status_completed": "Виконано",
+    "status_cancelled": "Скасовано",
+
+    "referral_program": "Запросити друга",
+    "referral_rules": "Поділися цим посиланням. Коли твій друг зробить своє перше замовлення, ти отримаєш 50 бонусів!",
+    "copy_link": "Копіювати",
+    "copied": "Скопійовано",
+    "share": "Поділитися",
+    "share_title": "Приєднуйся до Bar Poznan!",
+    "share_desc": "Зареєструйся за моїм посиланням і отримай бонуси на перше замовлення!",
+
+    "call_staff": "Покликати персонал",
+    "choose_staff_type": "Кого саме ви хочете покликати?",
+    "waiter": "Офіціанта",
+    "bartender": "Бармена",
+    "shisha_master": "Кальянного майстра",
+    "cooldown_active": "Зачекайте перед наступним викликом",
+    "please_wait": "Будь ласка, зачекайте",
+    "staff_called_success": "Персонал вже прямує до вас!",
+    "error_calling_staff": "Помилка виклику персоналу: ",
+
+    "language": "Мова",
+    "theme": "Тема",
+    "light_mode": "Світла",
+    "dark_mode": "Темна",
+    "about_us": "Про нас",
+    "legal_info": "Юридична інформація",
+    "address_title": "Адреса",
+    "hours_title": "Години роботи",
+    "terms_of_service": "Правила закладу",
+    "terms_short": "Правила",
+    "privacy_policy": "Конфіденційність",
+    "privacy_short": "Приватність",
+
+    "err_invalid_email": "Некоректний формат email",
+    "err_invalid_phone": "Введіть коректний номер телефону",
+    "err_password_short": "Пароль має бути не менше 6 символів",
+    "err_password_long": "Пароль занадто довгий",
+    "logout": "Вийти"
+  }
+}
 </file>
 
 <file path="src/index.css">
@@ -2700,19 +3143,19 @@ export function BottomNav() {
       <div className="mx-auto flex max-w-md items-center justify-between pb-2">
         <NavLink to="/" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
           <UtensilsCrossed className="h-6 w-6" />
-          <span className="text-[10px] font-medium uppercase tracking-wider">{t('menu', 'Меню')}</span>
+          <span className="text-[10px] font-medium uppercase tracking-wider">{t('menu')}</span>
         </NavLink>
         <NavLink to="/favorites" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
           <Heart className="h-6 w-6" />
-          <span className="text-[10px] font-medium uppercase tracking-wider">{t('favorites', 'Улюблене')}</span>
+          <span className="text-[10px] font-medium uppercase tracking-wider">{t('favorites')}</span>
         </NavLink>
         <NavLink to="/profile" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
           <User className="h-6 w-6" />
-          <span className="text-[10px] font-medium uppercase tracking-wider">{t('profile', 'Профіль')}</span>
+          <span className="text-[10px] font-medium uppercase tracking-wider">{t('profile')}</span>
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
           <Settings className="h-6 w-6" />
-          <span className="text-[10px] font-medium uppercase tracking-wider">{t('settings', 'Налаштування')}</span>
+          <span className="text-[10px] font-medium uppercase tracking-wider">{t('settings')}</span>
         </NavLink>
       </div>
     </nav>
@@ -2772,49 +3215,47 @@ export function AboutPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="shrink-0">
           <ChevronLeft className="h-6 w-6" />
         </Button>
-        <h1 className="text-xl font-bold uppercase tracking-wider line-clamp-1">{t('about_us', 'Про нас')}</h1>
+        <h1 className="text-xl font-bold uppercase tracking-wider line-clamp-1">{t('about_us')}</h1>
       </header>
 
       <main className="px-4 space-y-6">
-        {/* Головне фото */}
         <div className="w-full h-48 sm:h-64 bg-muted rounded-2xl overflow-hidden relative">
           <img 
-            src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000&auto=format&fit=crop" 
-            alt="Bar Interior" 
-            className="w-full h-full object-cover"
+            src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" 
+            alt="Bar interior" 
+            className="w-full h-full object-cover" 
           />
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
             <h2 className="text-3xl font-bold text-white tracking-widest uppercase">Bar Poznan</h2>
           </div>
         </div>
 
-        {/* Інформаційні картки */}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card>
             <CardContent className="p-4 flex items-center gap-4">
               <div className="bg-primary/10 p-3 rounded-full shrink-0">
                 <MapPin className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="font-semibold text-base sm:text-lg">{t('address_title', 'Адреса')}</p>
-                <p className="text-sm sm:text-base text-muted-foreground break-words">ul. Półwiejska 42, Poznań</p>
+                <p className="font-semibold text-base sm:text-lg">{t('address_title')}</p>
+                <p className="text-sm sm:text-base text-muted-foreground">ul. Półwiejska 42, Poznań</p>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-4 flex items-center gap-4">
-              <div className="bg-primary/10 p-3 rounded-full shrink-0">
-                <Clock className="h-6 w-6 text-primary" />
+              <div className="bg-orange-500/10 p-3 rounded-full shrink-0">
+                <Clock className="h-6 w-6 text-orange-500" />
               </div>
               <div>
-                <p className="font-semibold text-base sm:text-lg">{t('hours_title', 'Години роботи')}</p>
-                <p className="text-sm sm:text-base text-muted-foreground break-words">Пн-Нд: 16:00 - 02:00</p>
+                <p className="font-semibold text-base sm:text-lg">{t('hours_title')}</p>
+                <p className="text-sm sm:text-base text-muted-foreground">16:00 - 02:00</p>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => window.open('https://instagram.com', '_blank')}>
+          <Card>
             <CardContent className="p-4 flex items-center gap-4">
               <div className="bg-pink-500/10 p-3 rounded-full shrink-0">
                 <Camera className="h-6 w-6 text-pink-500" />
@@ -2832,25 +3273,23 @@ export function AboutPage() {
                 <Phone className="h-6 w-6 text-green-500" />
               </div>
               <div>
-                <p className="font-semibold text-base sm:text-lg">{t('phone', 'Телефон')}</p>
+                <p className="font-semibold text-base sm:text-lg">{t('phone')}</p>
                 <p className="text-sm sm:text-base text-muted-foreground break-words">+48 123 456 789</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Google Карта */}
         <div className="w-full h-64 sm:h-80 bg-muted rounded-2xl overflow-hidden relative border border-border">
           <iframe 
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2434.341315801725!2d16.9295175!3d52.4005881!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47045b387cfceb67%3A0xc6c429ad12543eb3!2sP%C3%B3%C5%82wiejska%2042%2C%2061-888%20Pozna%C5%84!5e0!3m2!1sen!2spl!4v1700000000000!5m2!1sen!2spl" 
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2434.34964645063!2d16.92728281580295!3d52.40058897979339!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47045b387e68d011%3A0x6b8bc210041d1a8e!2zUMOzxYJ3aWVqc2thIDQyLCA2MS04ODggUG96bmHFhQ!5e0!3m2!1sen!2spl!4v1680000000000!5m2!1sen!2spl" 
             width="100%" 
             height="100%" 
             style={{ border: 0 }} 
-            allowFullScreen={false} 
+            allowFullScreen 
             loading="lazy" 
             referrerPolicy="no-referrer-when-downgrade"
-            title="Google Maps"
-          ></iframe>
+          />
         </div>
       </main>
     </div>
@@ -2873,11 +3312,7 @@ export function CategoryPage() {
   const currentLang = i18n.language as 'pl' | 'ua' | 'en'
 
   const { data: categories } = useCategories()
-  
-  // Шукаємо категорію за слагом з URL
   const category = categories?.find(c => c.slug === slug)
-  
-  // Завантажуємо продукти тільки якщо знайдено ID категорії
   const { data: products, isLoading } = useProducts(category?.id)
 
   return (
@@ -2887,7 +3322,7 @@ export function CategoryPage() {
           <ChevronLeft className="h-6 w-6" />
         </Button>
         <h1 className="text-xl font-bold uppercase tracking-wider line-clamp-1">
-          {category ? (category.name[currentLang] || category.name.pl) : t('loading', 'Завантаження...')}
+          {category ? (category.name[currentLang] || category.name.pl) : t('loading')}
         </h1>
       </header>
 
@@ -2899,14 +3334,14 @@ export function CategoryPage() {
             ))}
           </div>
         ) : products && products.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
         ) : (
           <div className="text-center py-12 text-muted-foreground">
-            {t('no_products_found', 'У цій категорії поки немає товарів')}
+            <p>{t('no_products_found')}</p>
           </div>
         )}
       </main>
@@ -2934,11 +3369,11 @@ export function FavoritesPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] p-4 text-center">
         <Heart className="h-16 w-16 text-muted-foreground/30 mb-4" />
-        <h2 className="text-2xl font-bold mb-2">{t('auth_required', 'Потрібна авторизація')}</h2>
+        <h2 className="text-2xl font-bold mb-2">{t('auth_required')}</h2>
         <p className="text-muted-foreground mb-6">
-          {t('auth_fav_desc', 'Увійдіть, щоб зберігати свої улюблені напої та кальяни.')}
+          {t('auth_fav_desc')}
         </p>
-        <Button size="lg" onClick={() => navigate('/profile')}>{t('login', 'Увійти')}</Button>
+        <Button size="lg" onClick={() => navigate('/profile')}>{t('login')}</Button>
       </div>
     )
   }
@@ -2946,7 +3381,7 @@ export function FavoritesPage() {
   return (
     <div className="pb-24 animate-in fade-in duration-300">
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border p-4 mb-6">
-        <h1 className="text-2xl font-bold">{t('favorites', 'Улюблене')}</h1>
+        <h1 className="text-2xl font-bold">{t('favorites')}</h1>
       </header>
 
       <main className="px-4">
@@ -2957,16 +3392,15 @@ export function FavoritesPage() {
             ))}
           </div>
         ) : products && products.length > 0 ? (
-          /* Додано items-stretch для однакової висоти */
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
         ) : (
-          <div className="text-center py-20 text-muted-foreground flex flex-col items-center gap-4">
-            <Heart className="h-12 w-12 text-muted-foreground/30" />
-            <p>{t('no_favorites', 'Ви ще не додали жодного товару в улюблене')}</p>
+          <div className="text-center py-12 text-muted-foreground">
+            <Heart className="h-12 w-12 mx-auto mb-3 opacity-20" />
+            <p>{t('no_favorites')}</p>
           </div>
         )}
       </main>
@@ -2987,7 +3421,6 @@ import { Input } from '../components/ui/input'
 
 export function HomePage() {
   const { t, i18n } = useTranslation()
-  // Захист від undefined під час ініціалізації i18n
   const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
   
   const { tableId } = useAppStore()
@@ -3004,71 +3437,62 @@ export function HomePage() {
     if (!allProducts || !searchQuery.trim()) return []
     const query = searchQuery.toLowerCase().trim()
     return allProducts.filter((product) => {
-      // Захист через ?. (опціональний ланцюжок)
       const matchPl = product.name?.pl?.toLowerCase().includes(query)
       const matchUa = product.name?.ua?.toLowerCase().includes(query)
       const matchEn = product.name?.en?.toLowerCase().includes(query)
-      const matchTags = product.tags?.some(tag => tag.toLowerCase().includes(query))
-      return matchPl || matchUa || matchEn || matchTags
+      return matchPl || matchUa || matchEn
     })
   }, [allProducts, searchQuery])
 
-  const isSearching = searchQuery.trim().length > 0
-
   return (
     <div className="pb-24 animate-in fade-in duration-500">
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border p-4 mb-4">
-        {/* Адаптація для ПК: центрування шапки */}
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-primary uppercase tracking-wider">Bar Poznan</h1>
+      <header className="pt-8 pb-6 px-4 bg-background sticky top-0 z-30 shadow-sm border-b border-border">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight uppercase">Bar Poznan</h1>
             {tableId && (
-              <div className="text-sm font-medium bg-secondary px-3 py-1 rounded-full">
-                {t('table', 'Стіл')} {tableId}
-              </div>
+              <p className="text-sm font-medium text-primary mt-1">{t('table')} #{tableId}</p>
             )}
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              type="search"
-              placeholder={t('search_placeholder', 'Пошук напоїв та кальянів...')}
-              className="pl-10 bg-card rounded-xl border-primary/20 focus-visible:ring-primary/50"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+        </div>
+        
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input 
+            className="pl-10 bg-secondary border-none h-12 rounded-2xl w-full text-base" 
+            placeholder={t('search_placeholder')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
       </header>
 
-      {/* Адаптація для ПК: центрування контенту */}
-      <main className="space-y-8 max-w-3xl mx-auto">
-        {isSearching ? (
-          <div className="px-4">
+      <main className="px-4 mt-6 space-y-8">
+        {searchQuery.trim() ? (
+          <section className="space-y-4">
             {filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 items-stretch">
-                {filteredProducts.map((product) => (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch">
+                {filteredProducts.map(product => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-3">
-                <Search className="h-10 w-10 text-muted-foreground/50" />
-                <p>{t('no_search_results', 'За вашим запитом нічого не знайдено')}</p>
+              <div className="text-center py-12 text-muted-foreground">
+                <p className="text-lg">{t('no_search_results')}</p>
               </div>
             )}
-          </div>
+          </section>
         ) : (
           <>
             {bestsellers.length > 0 && (
               <section>
-                <div className="px-4 mb-4 flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-4">
                   <Flame className="h-5 w-5 text-orange-500" />
-                  <h2 className="text-xl font-bold">{t('top_sales', 'Топ продажів')}</h2>
+                  <h2 className="text-xl font-bold">{t('top_sales')}</h2>
                 </div>
-                <div className="flex gap-4 overflow-x-auto px-4 pb-4 hide-scrollbar snap-x items-stretch">
-                  {bestsellers.map(product => (
-                    <div key={product.id} className="w-[260px] shrink-0 snap-start h-auto">
+                <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x">
+                  {bestsellers.map((product) => (
+                    <div key={product.id} className="w-64 shrink-0 snap-start">
                       <ProductCard product={product} />
                     </div>
                   ))}
@@ -3076,24 +3500,21 @@ export function HomePage() {
               </section>
             )}
 
-            <section className="px-4">
-              <h2 className="text-xl font-bold mb-4">{t('menu_categories', 'Меню')}</h2>
-              {/* Адаптація сітки категорій */}
+            <section>
+              <h2 className="text-xl font-bold mb-4">{t('menu_categories')}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {categories?.map((category) => (
                   <Link key={category.id} to={`/category/${category.slug}`}>
-                    <div className="bg-muted rounded-2xl aspect-[4/3] relative overflow-hidden flex items-center justify-center group">
+                    <div className="bg-muted rounded-2xl aspect-[4/3] relative overflow-hidden flex items-center justify-center group border border-border/50">
                       {category.image_url && (
                         <img 
                           src={category.image_url} 
-                          // Захист через ?.
                           alt={category.name?.[currentLang] || category.name?.pl || 'Category'} 
                           className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-500" 
                         />
                       )}
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
                       <h3 className="relative z-10 text-xl font-bold text-white uppercase tracking-wider drop-shadow-lg text-center px-2">
-                        {/* Захист через ?. */}
                         {category.name?.[currentLang] || category.name?.pl || '...'}
                       </h3>
                     </div>
@@ -3127,7 +3548,7 @@ export function LegalPage() {
           <ChevronLeft className="h-6 w-6" />
         </Button>
         <h1 className="text-xl font-bold uppercase tracking-wider line-clamp-1">
-          {t('legal_info', 'Юридична інформація')}
+          {t('legal_info')}
         </h1>
       </header>
 
@@ -3136,34 +3557,30 @@ export function LegalPage() {
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="terms" className="gap-2">
               <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('terms_of_service', 'Правила закладу')}</span>
-              <span className="sm:hidden">{t('terms_short', 'Правила')}</span>
+              <span className="hidden sm:inline">{t('terms_short')}</span>
             </TabsTrigger>
             <TabsTrigger value="privacy" className="gap-2">
               <ShieldCheck className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('privacy_policy', 'Конфіденційність')}</span>
-              <span className="sm:hidden">{t('privacy_short', 'Приватність')}</span>
+              <span className="hidden sm:inline">{t('privacy_short')}</span>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="terms" className="space-y-4 text-sm text-muted-foreground leading-relaxed">
-            <h2 className="text-lg font-bold text-foreground">Regulamin lokalu Bar Poznan</h2>
-            <p>1. Lokal przeznaczony jest dla osób powyżej 18 roku życia. Obsługa ma prawo wylegitymować gościa w przypadku wątpliwości co do jego wieku.</p>
-            <p>2. Zastrzegamy sobie prawo do odmowy obsługi osób nietrzeźwych lub zachowujących się agresywnie.</p>
-            <p>3. W lokalu obowiązuje całkowity zakaz wnoszenia własnego alkoholu i jedzenia.</p>
+            <h2 className="text-lg font-bold text-foreground">{t('terms_of_service')}</h2>
+            <p>1. Lokal jest przeznaczony dla osób pełnoletnich (18+).</p>
+            <p>2. Zastrzegamy sobie prawo do odmowy obsługi osób nietrzeźwych lub agresywnych bez podania przyczyny.</p>
+            <p>3. Na terenie lokalu obowiązuje całkowity zakaz wnoszenia własnego alkoholu i jedzenia.</p>
             <p>4. Program lojalnościowy i punkty bonusowe nie podlegają wymianie na gotówkę.</p>
             <p>5. Rezerwacje stolików są trzymane do 15 minut od ustalonej godziny. Po tym czasie rezerwacja może zostać anulowana.</p>
-            {/* Тут ти зможеш вставити реальний текст твоїх правил */}
           </TabsContent>
 
           <TabsContent value="privacy" className="space-y-4 text-sm text-muted-foreground leading-relaxed">
-            <h2 className="text-lg font-bold text-foreground">Polityka Prywatności</h2>
+            <h2 className="text-lg font-bold text-foreground">{t('privacy_policy')}</h2>
             <p>1. Administrator Danych: Administratorem Twoich danych osobowych jest Bar Poznan z siedzibą przy ul. Półwiejska 42.</p>
             <p>2. Zbierane dane: Gromadzimy jedynie numer telefonu oraz adres e-mail w celu obsługi programu lojalnościowego (w przypadku rejestracji konta).</p>
             <p>3. Płatności: Nie przechowujemy danych kart płatniczych. Płatności realizowane są na miejscu w lokalu.</p>
             <p>4. Prawa Użytkownika: Masz prawo do wglądu, edycji oraz całkowitego usunięcia swojego konta w każdej chwili.</p>
-            <p>5. Ciasteczka (Cookies): Aplikacja korzysta z pamięci lokalnej (Local Storage) wyłącznie w celu zapamiętania Twojego koszyka, preferencji językowych oraz motywu (jasny/ciemny).</p>
-            {/* Тут ти зможеш вставити реальний текст політики */}
+            <p>5. Ciasteczka (Cookies): Aplikacja korzysta z pamięci lokalnej (Local Storage) wyłącznie w celu zapamiętania Twojego koszyka, motywu i wybranego języka.</p>
           </TabsContent>
         </Tabs>
       </main>
@@ -3206,62 +3623,64 @@ export function ProfilePage() {
 
   return (
     <div className="p-4 space-y-6 pb-24 animate-in fade-in duration-500">
-      <header className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">{t('profile', 'Профіль')}</h1>
-        <Button variant="ghost" size="icon" onClick={handleLogout}>
-          <LogOut className="h-5 w-5 text-muted-foreground" />
-        </Button>
+      <header className="mb-4">
+        <h1 className="text-3xl font-bold">{t('profile')}</h1>
       </header>
 
-      <Card className="bg-primary/10 border-primary/20">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium uppercase tracking-wider">
-            {t('your_bonuses', 'Ваші бонуси')}
-          </CardTitle>
-          <Award className="h-5 w-5 text-primary" />
+      <Card className="bg-primary text-primary-foreground border-none overflow-hidden relative">
+        <div className="absolute top-0 right-0 p-6 opacity-10">
+          <Award className="h-32 w-32" />
+        </div>
+        <CardHeader className="relative z-10 pb-2">
+          <CardTitle className="text-lg font-medium opacity-90">{t('welcome_club')}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-4xl font-bold text-primary">{user.bonus_points}</div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t('points_available', 'балів доступно для використання')}
-          </p>
+        <CardContent className="relative z-10">
+          <div className="text-4xl font-bold mb-1">{user.bonus_points}</div>
+          <p className="text-sm opacity-80">{t('points_available')}</p>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4">
-        <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
-          <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
-            <Phone className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">{t('phone', 'Телефон')}</p>
-            <p className="font-medium">{user.phone || t('not_set', 'Не вказано')}</p>
-          </div>
+      <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
+        <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
+          <Phone className="h-5 w-5 text-muted-foreground" />
         </div>
-
-        <Button 
-          variant="outline" 
-          className="h-16 justify-between px-6 rounded-xl"
-          onClick={() => setIsHistoryOpen(true)}
-        >
-          <div className="flex items-center gap-3">
-            <History className="h-5 w-5" />
-            <span>{t('order_history', 'Історія замовлень')}</span>
-          </div>
-        </Button>
-
-        <Button 
-          variant="outline" 
-          className="h-16 justify-between px-6 rounded-xl"
-          onClick={() => setIsReferralOpen(true)}
-        >
-          <div className="flex items-center gap-3">
-            <Share2 className="h-5 w-5" />
-            <span>{t('referral_program', 'Запросити друга')}</span>
-          </div>
-          <Badge variant="secondary">{user.referral_code}</Badge>
-        </Button>
+        <div>
+          <p className="text-xs text-muted-foreground">{t('phone')}</p>
+          <p className="font-medium">{user.phone || t('not_set')}</p>
+        </div>
       </div>
+
+      <Button 
+        variant="outline" 
+        className="w-full h-16 justify-between px-6 rounded-xl"
+        onClick={() => setIsHistoryOpen(true)}
+      >
+        <div className="flex items-center gap-3">
+          <History className="h-5 w-5" />
+          <span>{t('order_history')}</span>
+        </div>
+      </Button>
+
+      <Button 
+        variant="outline" 
+        className="w-full h-16 justify-between px-6 rounded-xl"
+        onClick={() => setIsReferralOpen(true)}
+      >
+        <div className="flex items-center gap-3">
+          <Share2 className="h-5 w-5" />
+          <span>{t('referral_program')}</span>
+        </div>
+        <Badge variant="secondary">{user.referral_code}</Badge>
+      </Button>
+
+      <Button 
+        variant="ghost" 
+        className="w-full h-14 justify-center text-destructive hover:bg-destructive/10 hover:text-destructive mt-8"
+        onClick={handleLogout}
+      >
+        <LogOut className="h-5 w-5 mr-2" />
+        {t('logout')}
+      </Button>
 
       <OrderHistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
       <ReferralDrawer isOpen={isReferralOpen} onClose={() => setIsReferralOpen(false)} />
@@ -3285,13 +3704,13 @@ export function SettingsPage() {
   return (
     <div className="p-4 space-y-8 pb-24 animate-in fade-in duration-500">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold">{t('settings', 'Налаштування')}</h1>
+        <h1 className="text-3xl font-bold">{t('settings')}</h1>
       </header>
 
       <section className="space-y-4">
         <div className="flex items-center gap-2 text-muted-foreground mb-2">
           <Globe className="h-5 w-5" />
-          <h2 className="text-lg font-semibold uppercase tracking-wider">{t('language', 'Мова')}</h2>
+          <h2 className="text-lg font-semibold uppercase tracking-wider">{t('language')}</h2>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <Button 
@@ -3321,7 +3740,7 @@ export function SettingsPage() {
       <section className="space-y-4 pt-6 border-t border-border">
         <div className="flex items-center gap-2 text-muted-foreground mb-2">
           {theme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-          <h2 className="text-lg font-semibold uppercase tracking-wider">{t('theme', 'Тема')}</h2>
+          <h2 className="text-lg font-semibold uppercase tracking-wider">{t('theme')}</h2>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Button 
@@ -3330,7 +3749,7 @@ export function SettingsPage() {
             className="h-14 gap-2"
           >
             <Sun className="h-5 w-5" />
-            {t('light_mode', 'Світла')}
+            {t('light_mode')}
           </Button>
           <Button 
             variant={theme === 'dark' ? 'default' : 'outline'} 
@@ -3338,7 +3757,7 @@ export function SettingsPage() {
             className="h-14 gap-2"
           >
             <Moon className="h-5 w-5" />
-            {t('dark_mode', 'Темна')}
+            {t('dark_mode')}
           </Button>
         </div>
       </section>
@@ -3349,7 +3768,7 @@ export function SettingsPage() {
           className="w-full h-14 justify-start text-lg"
           onClick={() => navigate('/about')}
         >
-          {t('about_us', 'Про нас')}
+          {t('about_us')}
         </Button>
         
         <Button 
@@ -3358,7 +3777,7 @@ export function SettingsPage() {
           onClick={() => navigate('/legal')}
         >
           <Scale className="h-5 w-5 mr-3" />
-          {t('legal_info', 'Юридична інформація')}
+          {t('legal_info')}
         </Button>
       </section>
       
@@ -3497,6 +3916,14 @@ interface AppState {
   hideAlert: () => void
 }
 
+const getDefaultLanguage = (): 'pl' | 'ua' | 'en' => {
+  if (typeof window === 'undefined') return 'pl'
+  const browserLang = navigator.language.toLowerCase()
+  if (browserLang.startsWith('uk') || browserLang.startsWith('ru')) return 'ua'
+  if (browserLang.startsWith('en')) return 'en'
+  return 'pl'
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -3507,7 +3934,7 @@ export const useAppStore = create<AppState>()(
       activeConstructorProduct: null,
       referralCodeToApply: null,
       theme: 'dark',
-      language: 'pl',
+      language: getDefaultLanguage(),
       lastServiceCallTime: null,
       alertConfig: { isOpen: false, title: '', message: '' },
       
@@ -3813,6 +4240,48 @@ export default defineConfig({
     },
   },
 })
+</file>
+
+<file path=".gitignore">
+# Секрети (API ключі Supabase) - НАЙВАЖЛИВІШЕ
+.env
+.env.local
+.env.*.local
+*.local
+
+# Залежності
+node_modules
+.pnp
+.pnp.js
+
+# Збірка
+dist
+dist-ssr
+*.com
+*.exe
+
+# Логи
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Редактори (VS Code, JetBrains)
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Тести та кеш
+.cache
+.eslintcache
 </file>
 
 </files>

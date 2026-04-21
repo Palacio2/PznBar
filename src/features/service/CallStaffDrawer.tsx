@@ -15,11 +15,14 @@ import {
 
 export function CallStaffDrawer() {
   const { t } = useTranslation()
-  const { tableId, lastServiceCallTime, setLastServiceCallTime, showAlert } = useAppStore()
+  const { tableId, lastServiceCallTime, setLastServiceCallTime, showAlert, cart } = useAppStore()
   const { mutate: callStaff, isPending } = useServiceCall()
   const [isOpen, setIsOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState<number>(0)
+
+  // Перевіряємо, чи видимий зараз кошик (щоб знати, куди посунути кнопку)
+  const isCartVisible = cart.length > 0
 
   useEffect(() => {
     if (!isOpen || !lastServiceCallTime) return
@@ -42,12 +45,7 @@ export function CallStaffDrawer() {
   }, [isOpen, lastServiceCallTime])
 
   const handleCall = (type: 'waiter' | 'barman' | 'shisha') => {
-    if (timeLeft > 0) return
-
-    if (!tableId) {
-      showAlert(t('attention'), t('scan_qr_prompt'))
-      return
-    }
+    if (timeLeft > 0 || !tableId) return
 
     callStaff(
       { tableId, type },
@@ -72,8 +70,16 @@ export function CallStaffDrawer() {
       <DrawerTrigger asChild>
         <Button
           variant="secondary"
-          className="fixed bottom-24 left-4 md:bottom-6 md:left-8 h-14 w-14 rounded-full shadow-2xl z-50"
+          className={`fixed right-4 h-14 w-14 rounded-full shadow-2xl z-50 transition-all duration-300 ${
+            isCartVisible ? 'bottom-40' : 'bottom-24'
+          }`}
           size="icon"
+          onClick={(e) => {
+            if (!tableId) {
+              e.preventDefault()
+              showAlert(t('attention'), t('scan_qr_prompt'))
+            }
+          }}
         >
           <Bell className="h-6 w-6" />
         </Button>

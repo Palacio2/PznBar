@@ -56,7 +56,8 @@
     "customize": "Зібрати",
     "add_to_order": "Додати",
     "out_of_stock": "Немає в наявності",
-    "allergens": "Алергени",
+    "allergens": "Інформація про алергени",
+    "no_allergens": "Алергени відсутні",
     "available_for_points": "Доступно за бали",
     "add_for": "Додати за",
 
@@ -121,12 +122,9 @@
     "privacy_short": "Приватність",
 
     "err_invalid_email": "Некоректний формат email",
-
-"err_invalid_phone": "Введіть коректний номер телефону",
-
-"err_password_short": "Пароль має бути не менше 6 символів",
-
-"err_password_long": "Пароль занадто довгий",
-"logout": "Вийти"
+    "err_invalid_phone": "Введіть коректний номер телефону",
+    "err_password_short": "Пароль має бути не менше 6 символів",
+    "err_password_long": "Пароль занадто довгий",
+    "logout": "Вийти"
   }
 }

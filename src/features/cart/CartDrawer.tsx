@@ -49,7 +49,10 @@ export function CartDrawer() {
     if (cart.length === 0) return
     
     if (!tableId) {
-      showAlert(t('attention'), t('scan_qr_prompt'))
+      setIsOpen(false)
+      setTimeout(() => {
+        showAlert(t('attention'), t('scan_qr_prompt'))
+      }, 300)
       return
     }
 
@@ -71,7 +74,10 @@ export function CartDrawer() {
           }, 3000)
         },
         onError: (error) => {
-          showAlert(t('error'), `${t('error_processing_order')}${error.message}`)
+          setIsOpen(false)
+          setTimeout(() => {
+            showAlert(t('error'), `${t('error_processing_order')}${error.message}`)
+          }, 300)
         }
       }
     )
@@ -83,12 +89,12 @@ export function CartDrawer() {
     <Drawer open={isOpen} onOpenChange={setIsOpen}>
       <DrawerTrigger asChild>
         <Button 
-          className="fixed bottom-24 right-4 md:right-8 h-14 w-14 rounded-full shadow-2xl z-50 flex flex-col gap-0" 
+          className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-2xl z-50 p-0" 
           size="icon"
         >
-          <div className="relative">
+          <div className="relative flex items-center justify-center w-full h-full">
             <ShoppingCart className="h-6 w-6" />
-            <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+            <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-[11px] font-bold text-destructive-foreground border-2 border-primary-foreground shadow-sm">
               {totalItems}
             </span>
           </div>

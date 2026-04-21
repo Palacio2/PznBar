@@ -4,9 +4,10 @@ import { Product } from '../../types/menu'
 import { Card, CardContent, CardFooter, CardHeader } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
-import { Info, Plus, Settings2, Award, Heart, Tag, ImageIcon } from 'lucide-react'
+import { Info, Plus, Settings2, Award, Heart, Tag, ImageIcon, MessageSquare, ChevronDown } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { useFavorites, useToggleFavorite } from '../../hooks/useFavorites'
+import { useProductStats } from '../../hooks/useProductStats'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '../../components/ui/drawer'
 import { ProductReviews } from './ProductReviews'
 
@@ -19,14 +20,18 @@ export function ProductCard({ product }: ProductCardProps) {
   const { user, addToCart, setActiveConstructorProduct, showAlert } = useAppStore()
   const { data: favorites } = useFavorites()
   const { mutate: toggleFavorite } = useToggleFavorite()
+  const { data: stats } = useProductStats(product.id)
   
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [showAllergens, setShowAllergens] = useState(false)
+  
   const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
 
   const name = product.name?.[currentLang] || product.name?.pl || t('unknown_product')
   const description = product.description?.[currentLang] || product.description?.pl || ''
   const isFavorite = favorites?.includes(product.id)
+  const hasAllergens = product.allergens && product.allergens.length > 0
   
   const formattedPrice = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(product.price || 0)
 
@@ -86,8 +91,19 @@ export function ProductCard({ product }: ProductCardProps) {
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 pt-0 flex-grow">
-          <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
+        <CardContent className="p-4 pt-0 flex-grow flex flex-col">
+          <p className="text-sm text-muted-foreground line-clamp-2 flex-grow">{description}</p>
+          
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/50 text-muted-foreground">
+            <div className="flex items-center gap-1 text-xs font-medium">
+              <Heart className="h-3.5 w-3.5" /> 
+              {stats?.likesCount || 0}
+            </div>
+            <div className="flex items-center gap-1 text-xs font-medium">
+              <MessageSquare className="h-3.5 w-3.5" /> 
+              {stats?.reviewsCount || 0}
+            </div>
+          </div>
         </CardContent>
 
         <CardFooter className="p-4 pt-0 mt-auto shrink-0">
@@ -99,63 +115,85 @@ export function ProductCard({ product }: ProductCardProps) {
       </Card>
 
       <Drawer open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DrawerContent className="max-h-[90vh]">
-          <div className="overflow-y-auto">
-            {product.image_url && (
-              <div className="w-full h-64 bg-muted relative">
-                <img src={product.image_url} alt={name} className="w-full h-full object-cover" />
-              </div>
-            )}
-            <DrawerHeader className="text-left">
-              <div className="flex justify-between items-start mb-2">
+        <DrawerContent className="max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          {/* Статичне фото зверху */}
+          {product.image_url && (
+            <div className="w-full h-56 bg-muted relative shrink-0">
+              <img src={product.image_url} alt={name} className="w-full h-full object-cover" />
+            </div>
+          )}
+          
+          {/* Контент, що скролиться */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            <DrawerHeader className="p-0 text-left">
+              <div className="flex justify-between items-start mb-2 gap-4">
                 <DrawerTitle className="text-2xl">{name}</DrawerTitle>
-                <span className="text-2xl font-bold text-primary">{formattedPrice}</span>
+                <span className="text-2xl font-bold text-primary shrink-0">{formattedPrice}</span>
               </div>
               <p className="text-muted-foreground leading-relaxed">{description}</p>
             </DrawerHeader>
 
-            <div className="p-4 space-y-4">
-              {product.tags && product.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {product.tags.map((tag) => (
-                    <Badge key={tag} variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1">
-                      <Tag className="h-3 w-3" />
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              {product.allergens && product.allergens.length > 0 && (
-                <div className="flex items-start gap-2 bg-secondary/50 p-3 rounded-lg">
-                  <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-sm">{t('allergens')}</p>
-                    <p className="text-sm text-muted-foreground">{product.allergens.join(', ')}</p>
-                  </div>
-                </div>
-              )}
-
-              {product.bonus_price && (
-                <div className="flex items-center justify-between bg-primary/10 border border-primary/20 p-3 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Award className="h-5 w-5 text-primary" />
-                    <span className="font-medium text-sm">{t('available_for_points')}</span>
-                  </div>
-                  <span className="font-bold text-primary">{product.bonus_price} б.</span>
-                </div>
-              )}
-              
-              <ProductReviews productId={product.id} />
+            <div className="flex items-center gap-4 text-muted-foreground bg-secondary/30 p-3 rounded-lg">
+              <div className="flex items-center gap-1.5 text-sm font-medium">
+                <Heart className="h-4 w-4 text-red-500" /> 
+                {stats?.likesCount || 0}
+              </div>
+              <div className="flex items-center gap-1.5 text-sm font-medium">
+                <MessageSquare className="h-4 w-4 text-primary" /> 
+                {stats?.reviewsCount || 0}
+              </div>
             </div>
 
-            <DrawerFooter className="border-t border-border mt-4">
-              <Button className="w-full h-14 text-lg gap-2" disabled={!product.is_available} onClick={handleAction}>
-                {product.is_constructor ? <Settings2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                {product.is_available ? (product.is_constructor ? t('customize') : t('add_to_order')) : t('out_of_stock')}
-              </Button>
-            </DrawerFooter>
+            {product.tags && product.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {product.tags.map((tag) => (
+                  <Badge key={tag} variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1">
+                    <Tag className="h-3 w-3" />
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Алергени як випадаюче меню */}
+            <div className="bg-secondary/50 rounded-lg overflow-hidden transition-all">
+              <button 
+                onClick={() => setShowAllergens(!showAllergens)}
+                className="w-full flex items-center justify-between p-3 focus:outline-none hover:bg-secondary/70 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Info className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <span className="font-semibold text-sm">{t('allergens', 'Інформація про алергени')}</span>
+                </div>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${showAllergens ? 'rotate-180' : ''}`} />
+              </button>
+              {showAllergens && (
+                <div className="p-3 pt-0 border-t border-border/50 text-sm text-muted-foreground animate-in fade-in slide-in-from-top-2">
+                  {hasAllergens ? product.allergens.join(', ') : t('no_allergens', 'Алергени відсутні')}
+                </div>
+              )}
+            </div>
+
+            {product.bonus_price && (
+              <div className="flex items-center justify-between bg-primary/10 border border-primary/20 p-3 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Award className="h-5 w-5 text-primary" />
+                  <span className="font-medium text-sm">{t('available_for_points')}</span>
+                </div>
+                <span className="font-bold text-primary">{product.bonus_price} б.</span>
+              </div>
+            )}
+            
+            <ProductReviews productId={product.id} />
           </div>
+
+          {/* Статична кнопка знизу */}
+          <DrawerFooter className="border-t border-border p-4 shrink-0 bg-background">
+            <Button className="w-full h-14 text-lg gap-2" disabled={!product.is_available} onClick={handleAction}>
+              {product.is_constructor ? <Settings2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              {product.is_available ? (product.is_constructor ? t('customize') : t('add_to_order')) : t('out_of_stock')}
+            </Button>
+          </DrawerFooter>
         </DrawerContent>
       </Drawer>
     </>
