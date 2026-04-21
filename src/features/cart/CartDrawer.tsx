@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Award, Wallet } from 'lucide-react'
-import { useAppStore, CartItem } from '../../store/useAppStore'
+import { useAppStore } from '../../store/useAppStore'
 import { useCreateOrder } from '../../hooks/useCreateOrder'
+import { useCartCalculations } from '../../hooks/useCartCalculations'
+import { useTranslationHelpers } from '../../hooks/useTranslationHelpers'
+import { formatPrice } from '../../lib/utils'
+import { APP_CONFIG } from '../../lib/constants'
 import { Button } from '../../components/ui/button'
 import {
   Drawer,
@@ -14,9 +18,8 @@ import {
 } from '../../components/ui/drawer'
 
 export function CartDrawer() {
-  const { t, i18n } = useTranslation()
-  const currentLang = i18n.language as 'pl' | 'ua' | 'en'
-  
+  const { t } = useTranslation()
+  const { getLocalizedText } = useTranslationHelpers()
   const { cart, tableId, user, removeFromCart, updateQuantity, clearCart, toggleItemPaymentMode, showAlert } = useAppStore()
   const { mutate: createOrder, isPending } = useCreateOrder()
   
@@ -24,26 +27,15 @@ export function CartDrawer() {
   const [isSuccess, setIsSuccess] = useState(false)
   const [tipPercent, setTipPercent] = useState<number>(0)
 
-  const getItemPrice = (item: CartItem) => {
-    if (item.payWithPoints) return 0
-    const extras = item.selectedIngredients?.reduce((sum, ing) => sum + (ing.price_extra || 0), 0) || 0
-    return (item.product.price + extras) * item.quantity
-  }
-
-  const rawBaseTotalCash = cart.reduce((sum, item) => sum + getItemPrice(item), 0)
-  const baseTotalCash = Math.round(rawBaseTotalCash * 100) / 100
-
-  const totalPointsUsed = cart.reduce((sum, item) => sum + (item.payWithPoints && item.product.bonus_price ? item.product.bonus_price * item.quantity : 0), 0)
-  
-  const pointsToEarn = cart.reduce((sum, item) => 
-    item.payWithPoints ? sum : sum + (item.product.bonus_reward * item.quantity), 0
-  )
-
-  const rawTipAmount = baseTotalCash * (tipPercent / 100)
-  const tipAmount = Math.round(rawTipAmount * 100) / 100
-
-  const finalTotalCash = Math.round((baseTotalCash + tipAmount) * 100) / 100
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const { 
+    baseTotalCash, 
+    totalPointsUsed, 
+    pointsToEarn, 
+    tipAmount, 
+    finalTotalCash, 
+    totalItems, 
+    getItemPrice 
+  } = useCartCalculations(cart, tipPercent)
 
   const handleCheckout = () => {
     if (cart.length === 0) return
@@ -57,12 +49,7 @@ export function CartDrawer() {
     }
 
     createOrder(
-      { 
-        tableId, 
-        items: cart,
-        userId: user?.id,
-        tipAmount
-      },
+      { tableId, items: cart, userId: user?.id, tipAmount },
       {
         onSuccess: () => {
           setIsSuccess(true)
@@ -88,10 +75,7 @@ export function CartDrawer() {
   return (
     <Drawer open={isOpen} onOpenChange={setIsOpen}>
       <DrawerTrigger asChild>
-        <Button 
-          className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-2xl z-50 p-0" 
-          size="icon"
-        >
+        <Button className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-2xl z-50 p-0" size="icon">
           <div className="relative flex items-center justify-center w-full h-full">
             <ShoppingCart className="h-6 w-6" />
             <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-[11px] font-bold text-destructive-foreground border-2 border-primary-foreground shadow-sm">
@@ -127,17 +111,17 @@ export function CartDrawer() {
                   <div key={item.id} className="flex flex-col border-b border-border pb-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
-                        <h4 className="text-sm font-semibold">{item.product.name[currentLang] || item.product.name.pl}</h4>
+                        <h4 className="text-sm font-semibold">{getLocalizedText(item.product.name)}</h4>
                         {item.selectedIngredients && item.selectedIngredients.length > 0 && (
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {item.selectedIngredients.map(ing => ing.name[currentLang] || ing.name.pl).join(', ')}
+                            {item.selectedIngredients.map(ing => getLocalizedText(ing.name)).join(', ')}
                           </p>
                         )}
                       </div>
                       <span className={`text-sm font-bold ${item.payWithPoints ? 'text-green-500' : 'text-primary'}`}>
                         {item.payWithPoints 
                           ? `${item.product.bonus_price! * item.quantity}` 
-                          : new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(getItemPrice(item))}
+                          : formatPrice(getItemPrice(item))}
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-3">
@@ -175,7 +159,7 @@ export function CartDrawer() {
               <div className="flex flex-col gap-2 mb-4">
                 <p className="text-xs text-muted-foreground uppercase font-bold">{t('add_tip')}</p>
                 <div className="flex gap-2">
-                  {[0, 5, 10, 15].map((percent) => (
+                  {APP_CONFIG.TIP_OPTIONS.map((percent) => (
                     <Button key={percent} variant={tipPercent === percent ? 'default' : 'outline'} className="flex-1 h-8 text-xs" onClick={() => setTipPercent(percent)} disabled={isPending || baseTotalCash === 0}>
                       {percent > 0 ? `${percent}%` : '0%'}
                     </Button>
@@ -196,7 +180,7 @@ export function CartDrawer() {
                 <div className="flex justify-between items-center pt-2">
                   <span className="font-semibold text-lg">{t('total')}</span>
                   <span className="font-bold text-2xl text-primary">
-                    {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(finalTotalCash)}
+                    {formatPrice(finalTotalCash)}
                   </span>
                 </div>
               </div>

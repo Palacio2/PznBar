@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bell, Coffee, GlassWater, Wind, CheckCircle2, Clock } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { useServiceCall } from '../../hooks/useServiceCall'
+import { useCooldown } from '../../hooks/useCooldown'
 import { Button } from '../../components/ui/button'
 import {
   Drawer,
@@ -17,32 +18,12 @@ export function CallStaffDrawer() {
   const { t } = useTranslation()
   const { tableId, lastServiceCallTime, setLastServiceCallTime, showAlert, cart } = useAppStore()
   const { mutate: callStaff, isPending } = useServiceCall()
+  
   const [isOpen, setIsOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [timeLeft, setTimeLeft] = useState<number>(0)
-
-  // Перевіряємо, чи видимий зараз кошик (щоб знати, куди посунути кнопку)
+  
+  const timeLeft = useCooldown(lastServiceCallTime, 120, isOpen)
   const isCartVisible = cart.length > 0
-
-  useEffect(() => {
-    if (!isOpen || !lastServiceCallTime) return
-    
-    const checkCooldown = () => {
-      const now = Date.now()
-      const diff = Math.floor((now - lastServiceCallTime) / 1000)
-      const cooldown = 120
-      
-      if (diff < cooldown) {
-        setTimeLeft(cooldown - diff)
-      } else {
-        setTimeLeft(0)
-      }
-    }
-
-    checkCooldown()
-    const interval = setInterval(checkCooldown, 1000)
-    return () => clearInterval(interval)
-  }, [isOpen, lastServiceCallTime])
 
   const handleCall = (type: 'waiter' | 'barman' | 'shisha') => {
     if (timeLeft > 0 || !tableId) return
@@ -89,9 +70,7 @@ export function CallStaffDrawer() {
           <DrawerHeader>
             <DrawerTitle className="text-center">{t('call_staff')}</DrawerTitle>
             <DrawerDescription className="text-center">
-              {timeLeft > 0 
-                ? t('cooldown_active') 
-                : t('choose_staff_type')}
+              {timeLeft > 0 ? t('cooldown_active') : t('choose_staff_type')}
             </DrawerDescription>
           </DrawerHeader>
           

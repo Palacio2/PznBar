@@ -37,7 +37,7 @@ export function AboutPage() {
               </div>
               <div>
                 <p className="font-semibold text-base sm:text-lg">{t('address_title')}</p>
-                <p className="text-sm sm:text-base text-muted-foreground">ul. Półwiejska 42, Poznań</p>
+                <p className="text-sm sm:text-base text-muted-foreground">{t('address_value')}</p>
               </div>
             </CardContent>
           </Card>
@@ -49,7 +49,7 @@ export function AboutPage() {
               </div>
               <div>
                 <p className="font-semibold text-base sm:text-lg">{t('hours_title')}</p>
-                <p className="text-sm sm:text-base text-muted-foreground">16:00 - 02:00</p>
+                <p className="text-sm sm:text-base text-muted-foreground">{t('hours_value')}</p>
               </div>
             </CardContent>
           </Card>
@@ -61,7 +61,7 @@ export function AboutPage() {
               </div>
               <div>
                 <p className="font-semibold text-base sm:text-lg">Instagram</p>
-                <p className="text-sm sm:text-base text-muted-foreground break-words">@bar_poznan</p>
+                <p className="text-sm sm:text-base text-muted-foreground break-words">{t('instagram_value')}</p>
               </div>
             </CardContent>
           </Card>
@@ -73,7 +73,7 @@ export function AboutPage() {
               </div>
               <div>
                 <p className="font-semibold text-base sm:text-lg">{t('phone')}</p>
-                <p className="text-sm sm:text-base text-muted-foreground break-words">+48 123 456 789</p>
+                <p className="text-sm sm:text-base text-muted-foreground break-words">{t('phone_value')}</p>
               </div>
             </CardContent>
           </Card>
@@ -81,7 +81,7 @@ export function AboutPage() {
 
         <div className="w-full h-64 sm:h-80 bg-muted rounded-2xl overflow-hidden relative border border-border">
           <iframe 
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2434.34964645063!2d16.92728281580295!3d52.40058897979339!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47045b387e68d011%3A0x6b8bc210041d1a8e!2zUMOzxYJ3aWVqc2thIDQyLCA2MS04ODggUG96bmHFhQ!5e0!3m2!1sen!2spl!4v1680000000000!5m2!1sen!2spl" 
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2434.331448663806!2d16.924844315802264!3d52.40055597989012!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47045b3760447385%3A0xc3b8414436555546!2sP%C3%B3%C5%82wiejska%2042%2C%2061-892%20Pozna%C5%84%2C%20Poland!5e0!3m2!1sen!2s!4v1647432123456!5m2!1sen!2s" 
             width="100%" 
             height="100%" 
             style={{ border: 0 }} 

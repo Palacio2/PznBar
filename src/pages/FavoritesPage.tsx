@@ -5,6 +5,7 @@ import { ProductCard } from '../features/menu/ProductCard'
 import { useAppStore } from '../store/useAppStore'
 import { Button } from '../components/ui/button'
 import { useNavigate } from 'react-router-dom'
+import { ProductSkeleton } from '../components/ui/ProductSkeleton'
 
 export function FavoritesPage() {
   const { t } = useTranslation()
@@ -33,9 +34,9 @@ export function FavoritesPage() {
 
       <main className="px-4">
         {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {[1, 2].map((i) => (
-              <div key={i} className="h-72 bg-muted animate-pulse rounded-xl" />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch">
+            {[1, 2, 3, 4].map((i) => (
+              <ProductSkeleton key={i} />
             ))}
           </div>
         ) : products && products.length > 0 ? (

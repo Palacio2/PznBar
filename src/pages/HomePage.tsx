@@ -6,10 +6,12 @@ import { useAppStore } from '../store/useAppStore'
 import { useCategories, useProducts } from '../hooks/useMenu'
 import { ProductCard } from '../features/menu/ProductCard'
 import { Input } from '../components/ui/input'
+import { useTranslationHelpers } from '../hooks/useTranslationHelpers'
+import { PRODUCT_TAGS } from '../lib/constants'
 
 export function HomePage() {
-  const { t, i18n } = useTranslation()
-  const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
+  const { t } = useTranslation()
+  const { getLocalizedText } = useTranslationHelpers()
   
   const { tableId } = useAppStore()
   const [searchQuery, setSearchQuery] = useState('')
@@ -18,7 +20,7 @@ export function HomePage() {
   const { data: allProducts } = useProducts(null)
 
   const bestsellers = useMemo(() => {
-    return allProducts?.filter(p => p.tags?.includes('Bestseller')) || []
+    return allProducts?.filter(p => p.tags?.includes(PRODUCT_TAGS.BESTSELLER)) || []
   }, [allProducts])
 
   const filteredProducts = useMemo(() => {
@@ -97,13 +99,13 @@ export function HomePage() {
                       {category.image_url && (
                         <img 
                           src={category.image_url} 
-                          alt={category.name?.[currentLang] || category.name?.pl || 'Category'} 
+                          alt={getLocalizedText(category.name)} 
                           className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-500" 
                         />
                       )}
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
                       <h3 className="relative z-10 text-xl font-bold text-white uppercase tracking-wider drop-shadow-lg text-center px-2">
-                        {category.name?.[currentLang] || category.name?.pl || '...'}
+                        {getLocalizedText(category.name, '...')}
                       </h3>
                     </div>
                   </Link>

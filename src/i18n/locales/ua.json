@@ -125,6 +125,18 @@
     "err_invalid_phone": "Введіть коректний номер телефону",
     "err_password_short": "Пароль має бути не менше 6 символів",
     "err_password_long": "Пароль занадто довгий",
-    "logout": "Вийти"
+    "logout": "Вийти",
+
+    "translation": {
+    "address_value": "вул. Пулвєйська 42, Познань",
+    "hours_value": "16:00 - 02:00",
+    "instagram_value": "@bar_poznan",
+    "phone_value": "+48 123 456 789",
+    "type_tobacco": "Тютюн",
+    "type_bowl": "Чаша",
+    "type_base": "Колба",
+    "type_alcohol": "Алкоголь",
+    "type_mixer": "Міксер"
+  }
   }
 }

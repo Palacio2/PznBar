@@ -10,13 +10,16 @@ import { useFavorites, useToggleFavorite } from '../../hooks/useFavorites'
 import { useProductStats } from '../../hooks/useProductStats'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '../../components/ui/drawer'
 import { ProductReviews } from './ProductReviews'
+import { formatPrice } from '../../lib/utils'
+import { useTranslationHelpers } from '../../hooks/useTranslationHelpers'
 
 interface ProductCardProps {
   product: Product
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
+  const { getLocalizedText } = useTranslationHelpers()
   const { user, addToCart, setActiveConstructorProduct, showAlert } = useAppStore()
   const { data: favorites } = useFavorites()
   const { mutate: toggleFavorite } = useToggleFavorite()
@@ -26,14 +29,11 @@ export function ProductCard({ product }: ProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [showAllergens, setShowAllergens] = useState(false)
   
-  const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
-
-  const name = product.name?.[currentLang] || product.name?.pl || t('unknown_product')
-  const description = product.description?.[currentLang] || product.description?.pl || ''
+  const name = getLocalizedText(product.name, t('unknown_product'))
+  const description = getLocalizedText(product.description)
   const isFavorite = favorites?.includes(product.id)
   const hasAllergens = product.allergens && product.allergens.length > 0
-  
-  const formattedPrice = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(product.price || 0)
+  const formattedPrice = formatPrice(product.price || 0)
 
   const handleAction = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
@@ -49,9 +49,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!user) {
-      // Спочатку закриваємо карточку товару!
       setIsDetailsOpen(false)
-      // Чекаємо трохи, щоб анімація закриття пройшла, і показуємо алерт
       setTimeout(() => {
         showAlert(t('attention'), t('auth_required_fav'))
       }, 300)
@@ -120,10 +118,7 @@ export function ProductCard({ product }: ProductCardProps) {
       </Card>
 
       <Drawer open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        {/* Прибираємо жорсткий overflow-hidden з контейнера, щоб дати більше свободи */}
         <DrawerContent className="max-h-[90vh] flex flex-col p-0">
-          
-          {/* Контент, що скролиться (ВКЛЮЧНО з фото) */}
           <div className="flex-1 overflow-y-auto">
             {product.image_url && (
               <div className="w-full h-56 bg-muted relative shrink-0">
@@ -162,7 +157,6 @@ export function ProductCard({ product }: ProductCardProps) {
                 </div>
               )}
 
-              {/* Алергени */}
               <div className="bg-secondary/50 rounded-lg overflow-hidden transition-all">
                 <button 
                   onClick={() => setShowAllergens(!showAllergens)}
@@ -191,15 +185,12 @@ export function ProductCard({ product }: ProductCardProps) {
                 </div>
               )}
               
-              {/* Відгуки */}
               <ProductReviews productId={product.id} />
               
-              {/* Порожній простір знизу, щоб зручно було скролити під клавіатурою */}
               <div className="h-8" /> 
             </div>
           </div>
 
-          {/* Статична кнопка "Додати" завжди знизу екрану */}
           <DrawerFooter className="border-t border-border p-4 shrink-0 bg-background">
             <Button className="w-full h-14 text-lg gap-2" disabled={!product.is_available} onClick={handleAction}>
               {product.is_constructor ? <Settings2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}

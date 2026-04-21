@@ -1,104 +1,30 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { z } from 'zod'
 import { Eye, EyeOff } from 'lucide-react'
-import { supabase } from '../../api/supabase'
-import { useAppStore } from '../../store/useAppStore'
+import { useAuthForm } from '../../hooks/useAuthForm'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
 
-type ValidationErrors = Record<string, string>
-
 export function AuthForm() {
   const { t } = useTranslation()
-  const { referralCodeToApply } = useAppStore()
-  
-  const [activeTab, setActiveTab] = useState('login')
-  const [isLoading, setIsLoading] = useState(false)
-  const [globalError, setGlobalError] = useState<string | null>(null)
-  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({})
   const [showPassword, setShowPassword] = useState(false)
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [phone, setPhone] = useState('')
-
-  const loginSchema = z.object({
-    email: z.string().email(t('err_invalid_email')),
-    password: z.string().min(6, t('err_password_short')).max(50, t('err_password_long')),
-  })
-
-  const registerSchema = z.object({
-    email: z.string().email(t('err_invalid_email')),
-    phone: z.string().regex(/^\+?[0-9]{9,15}$/, t('err_invalid_phone')),
-    password: z.string().min(6, t('err_password_short')).max(50, t('err_password_long')),
-  })
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setGlobalError(null)
-    setValidationErrors({})
-
-    const result = loginSchema.safeParse({ email, password })
-    if (!result.success) {
-      const errors: ValidationErrors = {}
-      result.error.issues.forEach((issue) => {
-        if (issue.path[0] !== undefined) {
-          errors[String(issue.path[0])] = issue.message
-        }
-      })
-      setValidationErrors(errors)
-      setIsLoading(false)
-      return
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setGlobalError(error.message)
-    setIsLoading(false)
-  }
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setGlobalError(null)
-    setValidationErrors({})
-
-    const result = registerSchema.safeParse({ email, phone, password })
-    if (!result.success) {
-      const errors: ValidationErrors = {}
-      result.error.issues.forEach((issue) => {
-        if (issue.path[0] !== undefined) {
-          errors[String(issue.path[0])] = issue.message
-        }
-      })
-      setValidationErrors(errors)
-      setIsLoading(false)
-      return
-    }
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { 
-          phone,
-          referred_by_code: referralCodeToApply
-        },
-      },
-    })
-    
-    if (error) {
-      setGlobalError(error.message)
-    } else {
-      setPassword('')
-      setGlobalError(null)
-      setActiveTab('login')
-    }
-    
-    setIsLoading(false)
-  }
+  
+  const {
+    activeTab,
+    setActiveTab,
+    isLoading,
+    globalError,
+    validationErrors,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    phone,
+    setPhone,
+    handleLogin,
+    handleRegister
+  } = useAuthForm()
 
   return (
     <div className="w-full max-w-sm mx-auto p-4 space-y-6">

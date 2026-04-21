@@ -6,17 +6,14 @@ import { useCategories } from '../../hooks/useMenu'
 import { Ingredient } from '../../types/menu'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerFooter,
-} from '../../components/ui/drawer'
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '../../components/ui/drawer'
+import { formatPrice } from '../../lib/utils'
+import { useTranslationHelpers } from '../../hooks/useTranslationHelpers'
+import { CATEGORY_SLUGS, INGREDIENT_TYPES } from '../../lib/constants'
 
 export function ConstructorDrawer() {
-  const { t, i18n } = useTranslation()
-  const currentLang = i18n.language as 'pl' | 'ua' | 'en'
+  const { t } = useTranslation()
+  const { getLocalizedText } = useTranslationHelpers()
   const { activeConstructorProduct, setActiveConstructorProduct, addToCart } = useAppStore()
   
   const { data: categories } = useCategories()
@@ -27,13 +24,14 @@ export function ConstructorDrawer() {
     if (!ingredients || !activeConstructorProduct || !categories) return {}
     
     const category = categories.find(c => c.id === activeConstructorProduct.category_id)
-    
-    const isHookah = category?.slug === 'hookahs' || category?.slug === 'shisha'
-    const isCocktail = category?.slug === 'cocktails'
+    if (!category) return {}
+
+    const isHookah = CATEGORY_SLUGS.HOOKAH.includes(category.slug)
+    const isCocktail = CATEGORY_SLUGS.COCKTAIL.includes(category.slug)
 
     let allowedTypes: string[] = []
-    if (isHookah) allowedTypes = ['tobacco', 'bowl', 'base']
-    if (isCocktail) allowedTypes = ['alcohol', 'mixer']
+    if (isHookah) allowedTypes = INGREDIENT_TYPES.HOOKAH
+    if (isCocktail) allowedTypes = INGREDIENT_TYPES.COCKTAIL
 
     return ingredients
       .filter(ing => allowedTypes.includes(ing.type))
@@ -75,7 +73,7 @@ export function ConstructorDrawer() {
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader>
           <DrawerTitle className="text-xl">
-            {activeConstructorProduct.name?.[currentLang] || activeConstructorProduct.name?.pl || t('custom_product')}
+            {getLocalizedText(activeConstructorProduct.name, t('custom_product'))}
           </DrawerTitle>
         </DrawerHeader>
         <div className="p-4 overflow-y-auto space-y-6 pb-24">
@@ -93,7 +91,7 @@ export function ConstructorDrawer() {
                         isSelected ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card'
                       }`}
                     >
-                      <span className="text-sm font-medium">{ing.name?.[currentLang] || ing.name?.pl || t('ingredient')}</span>
+                      <span className="text-sm font-medium">{getLocalizedText(ing.name, t('ingredient'))}</span>
                       {ing.price_extra > 0 && <Badge variant="secondary" className="text-[10px]">+{ing.price_extra}</Badge>}
                     </button>
                   )
@@ -104,7 +102,7 @@ export function ConstructorDrawer() {
         </div>
         <DrawerFooter className="absolute bottom-0 w-full bg-background/95 backdrop-blur-md border-t p-4">
           <Button className="w-full h-14 text-lg" onClick={handleAdd}>
-            {t('add_for')} {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(totalPrice)}
+            {t('add_for')} {formatPrice(totalPrice)}
           </Button>
         </DrawerFooter>
       </DrawerContent>

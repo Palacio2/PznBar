@@ -4,6 +4,8 @@ import { useOrders } from '../../hooks/useOrders'
 import { useProducts } from '../../hooks/useMenu'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../../components/ui/drawer'
 import { Badge } from '../../components/ui/badge'
+import { formatPrice } from '../../lib/utils'
+import { useTranslationHelpers } from '../../hooks/useTranslationHelpers'
 
 interface OrderHistoryDrawerProps {
   isOpen: boolean
@@ -12,7 +14,7 @@ interface OrderHistoryDrawerProps {
 
 export function OrderHistoryDrawer({ isOpen, onClose }: OrderHistoryDrawerProps) {
   const { t, i18n } = useTranslation()
-  const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
+  const { getLocalizedText } = useTranslationHelpers()
   const { user } = useAppStore()
   const { data: orders, isLoading: isOrdersLoading } = useOrders(user?.id)
   const { data: allProducts } = useProducts(null)
@@ -31,7 +33,7 @@ export function OrderHistoryDrawer({ isOpen, onClose }: OrderHistoryDrawerProps)
     if (!allProducts) return t('unknown_product')
     const product = allProducts.find(p => p.id === productId)
     if (!product) return t('unknown_product')
-    return product.name?.[currentLang] || product.name?.pl || t('unknown_product')
+    return getLocalizedText(product.name, t('unknown_product'))
   }
 
   return (
@@ -68,7 +70,7 @@ export function OrderHistoryDrawer({ isOpen, onClose }: OrderHistoryDrawerProps)
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-primary text-lg">
-                      {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(order.total_price)}
+                      {formatPrice(order.total_price)}
                     </p>
                     {order.points_earned > 0 && (
                       <p className="text-xs text-green-500 font-medium mt-1">+{order.points_earned}</p>
@@ -86,7 +88,7 @@ export function OrderHistoryDrawer({ isOpen, onClose }: OrderHistoryDrawerProps)
                           {item.is_custom && <span className="text-primary ml-1">*</span>}
                         </span>
                         <span className="font-medium text-muted-foreground">
-                          {item.price === 0 ? t('by_points') : new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(item.price * item.quantity)}
+                          {item.price === 0 ? t('by_points') : formatPrice(item.price * item.quantity)}
                         </span>
                       </li>
                     ))}

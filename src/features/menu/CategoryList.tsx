@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useCategories } from '../../hooks/useMenu'
 import { Button } from '../../components/ui/button'
+import { useTranslationHelpers } from '../../hooks/useTranslationHelpers'
 
 interface CategoryListProps {
   selectedCategoryId: string | null
@@ -8,10 +9,9 @@ interface CategoryListProps {
 }
 
 export function CategoryList({ selectedCategoryId, onSelectCategory }: CategoryListProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
+  const { getLocalizedText } = useTranslationHelpers()
   const { data: categories, isLoading, error } = useCategories()
-
-  const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
 
   if (isLoading) {
     return (
@@ -51,7 +51,7 @@ export function CategoryList({ selectedCategoryId, onSelectCategory }: CategoryL
           className="rounded-full whitespace-nowrap shrink-0"
           onClick={() => onSelectCategory(category.id)}
         >
-          {category.name[currentLang] || category.name.pl}
+          {getLocalizedText(category.name)}
         </Button>
       ))}
     </div>
