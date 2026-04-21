@@ -6,6 +6,7 @@ import { useCategories } from '../../hooks/useMenu'
 import { Ingredient } from '../../types/menu'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
+import { getLocalized } from '../../lib/utils'
 import {
   Drawer,
   DrawerContent,
@@ -13,6 +14,12 @@ import {
   DrawerTitle,
   DrawerFooter,
 } from '../../components/ui/drawer'
+
+const CONSTRUCTOR_CONFIG: Record<string, string[]> = {
+  'hookahs': ['tobacco', 'bowl', 'base'],
+  'shisha': ['tobacco', 'bowl', 'base'],
+  'cocktails': ['alcohol', 'mixer']
+}
 
 export function ConstructorDrawer() {
   const { t, i18n } = useTranslation()
@@ -27,13 +34,7 @@ export function ConstructorDrawer() {
     if (!ingredients || !activeConstructorProduct || !categories) return {}
     
     const category = categories.find(c => c.id === activeConstructorProduct.category_id)
-    
-    const isHookah = category?.slug === 'hookahs' || category?.slug === 'shisha'
-    const isCocktail = category?.slug === 'cocktails'
-
-    let allowedTypes: string[] = []
-    if (isHookah) allowedTypes = ['tobacco', 'bowl', 'base']
-    if (isCocktail) allowedTypes = ['alcohol', 'mixer']
+    const allowedTypes = category?.slug ? CONSTRUCTOR_CONFIG[category.slug] || [] : []
 
     return ingredients
       .filter(ing => allowedTypes.includes(ing.type))
@@ -75,7 +76,7 @@ export function ConstructorDrawer() {
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader>
           <DrawerTitle className="text-xl">
-            {activeConstructorProduct.name?.[currentLang] || activeConstructorProduct.name?.pl || t('custom_product')}
+            {getLocalized(activeConstructorProduct.name, currentLang) || t('custom_product')}
           </DrawerTitle>
         </DrawerHeader>
         <div className="p-4 overflow-y-auto space-y-6 pb-24">
@@ -93,7 +94,7 @@ export function ConstructorDrawer() {
                         isSelected ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card'
                       }`}
                     >
-                      <span className="text-sm font-medium">{ing.name?.[currentLang] || ing.name?.pl || t('ingredient')}</span>
+                      <span className="text-sm font-medium">{getLocalized(ing.name, currentLang) || t('ingredient')}</span>
                       {ing.price_extra > 0 && <Badge variant="secondary" className="text-[10px]">+{ing.price_extra}</Badge>}
                     </button>
                   )

@@ -5,13 +5,17 @@ import { UserProfile } from '../types/menu'
 
 export function useAuth() {
   const setUser = useAppStore((state) => state.setUser)
+  const setAuthLoading = useAppStore((state) => state.setAuthLoading) // <-- Додали
 
   useEffect(() => {
+    setAuthLoading(true) // Починаємо завантаження
+    
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         fetchProfile(session.user.id)
       } else {
         setUser(null)
+        setAuthLoading(false)
       }
     })
 
@@ -20,11 +24,12 @@ export function useAuth() {
         fetchProfile(session.user.id)
       } else {
         setUser(null)
+        setAuthLoading(false)
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [setUser])
+  }, [setUser, setAuthLoading])
 
   async function fetchProfile(userId: string) {
     try {
@@ -44,6 +49,8 @@ export function useAuth() {
       }
     } catch (err) {
       console.error('Unexpected error fetching profile:', err)
+    } finally {
+      setAuthLoading(false) // <-- Завжди зупиняємо завантаження в кінці
     }
   }
 }

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Routes, Route, useSearchParams } from 'react-router-dom'
+import { Routes, Route, useSearchParams, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../store/useAppStore'
 import { useAuth } from '../hooks/useAuth'
@@ -10,16 +10,34 @@ import { FavoritesPage } from '../pages/FavoritesPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { AboutPage } from '../pages/AboutPage'
+import { LegalPage } from '../pages/LegalPage'
+
+import { AdminDashboard } from '../pages/AdminDashboard'
+import { AdminRoute } from './AdminRoute'
+
+import { StaffDashboard } from '../pages/StaffDashboard'
+import { StaffRoute } from './StaffRoute'
 
 import { BottomNav } from '../layouts/BottomNav'
 import { CartDrawer } from '../features/cart/CartDrawer'
 import { CallStaffDrawer } from '../features/service/CallStaffDrawer'
 import { ConstructorDrawer } from '../features/constructor/ConstructorDrawer'
 import { AgeVerificationModal } from '../features/auth/AgeVerificationModal'
-import { LegalPage } from '../pages/LegalPage'
 import { GlobalAlert } from '../components/ui/GlobalAlert'
 
-function AppLayout({ children }: { children: React.ReactNode }) {
+function ClientLayout() {
+  return (
+    <div className="min-h-screen bg-background pb-20 transition-colors duration-300">
+      <Outlet />
+      <ConstructorDrawer />
+      <CallStaffDrawer />
+      <CartDrawer />
+      <AgeVerificationModal />
+    </div>
+  )
+}
+
+export function AppRoutes() {
   const [searchParams] = useSearchParams()
   const { setTableId, setReferralCodeToApply, theme, language } = useAppStore()
   const { i18n } = useTranslation()
@@ -46,30 +64,30 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   }, [searchParams, setTableId, setReferralCodeToApply])
 
   return (
-    <div className="min-h-screen bg-background pb-20 transition-colors duration-300">
-      {children}
-      <ConstructorDrawer />
-      <CallStaffDrawer />
-      <CartDrawer />
-      <AgeVerificationModal />
+    <>
       <GlobalAlert />
-      <BottomNav />
-    </div>
-  )
-}
-
-export function AppRoutes() {
-  return (
-    <AppLayout>
+      
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/category/:slug" element={<CategoryPage />} />
-        <Route path="/favorites" element={<FavoritesPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/legal" element={<LegalPage />} />
-        <Route path="/about" element={<AboutPage />} />
+        <Route element={<ClientLayout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/category/:slug" element={<CategoryPage />} />
+          <Route path="/favorites" element={<FavoritesPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/legal" element={<LegalPage />} />
+          <Route path="/about" element={<AboutPage />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/*" element={<AdminDashboard />} /> 
+        </Route>
+
+        <Route element={<StaffRoute />}>
+          <Route path="/staff" element={<StaffDashboard />} />
+        </Route>
       </Routes>
-    </AppLayout>
+
+      <BottomNav />
+    </>
   )
 }

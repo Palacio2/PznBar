@@ -14,12 +14,14 @@ interface AlertConfig {
   isOpen: boolean
   title: string
   message: string
+  onConfirm?: () => void
 }
 
 interface AppState {
   tableId: string | null
   isAgeVerified: boolean
   user: UserProfile | null
+  isAuthLoading: boolean
   cart: CartItem[]
   activeConstructorProduct: Product | null
   referralCodeToApply: string | null
@@ -28,6 +30,7 @@ interface AppState {
   lastServiceCallTime: number | null
   alertConfig: AlertConfig
   
+  setAuthLoading: (loading: boolean) => void
   setLastServiceCallTime: (time: number) => void
   setLanguage: (lang: 'pl' | 'ua' | 'en') => void
   setTheme: (theme: 'dark' | 'light') => void
@@ -42,7 +45,7 @@ interface AppState {
   toggleItemPaymentMode: (id: string) => void
   clearCart: () => void
   
-  showAlert: (title: string, message: string) => void
+  showAlert: (title: string, message: string, onConfirm?: () => void) => void
   hideAlert: () => void
 }
 
@@ -60,6 +63,7 @@ export const useAppStore = create<AppState>()(
       tableId: null,
       isAgeVerified: false,
       user: null,
+      isAuthLoading: true,
       cart: [],
       activeConstructorProduct: null,
       referralCodeToApply: null,
@@ -68,6 +72,7 @@ export const useAppStore = create<AppState>()(
       lastServiceCallTime: null,
       alertConfig: { isOpen: false, title: '', message: '' },
       
+      setAuthLoading: (loading) => set({ isAuthLoading: loading }),
       setLastServiceCallTime: (time) => set({ lastServiceCallTime: time }),
       setLanguage: (language) => set({ language }),
       setTheme: (theme) => set({ theme }),
@@ -123,8 +128,8 @@ export const useAppStore = create<AppState>()(
         
       clearCart: () => set({ cart: [] }),
       
-      showAlert: (title, message) => set({ alertConfig: { isOpen: true, title, message } }),
-      hideAlert: () => set((state) => ({ alertConfig: { ...state.alertConfig, isOpen: false } })),
+      showAlert: (title, message, onConfirm) => set({ alertConfig: { isOpen: true, title, message, onConfirm } }),
+      hideAlert: () => set((state) => ({ alertConfig: { ...state.alertConfig, isOpen: false, onConfirm: undefined } })),
     }),
     {
       name: 'bar-poznan-storage',

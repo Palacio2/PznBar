@@ -60,6 +60,11 @@ src/components/ui/drawer.tsx
 src/components/ui/GlobalAlert.tsx
 src/components/ui/input.tsx
 src/components/ui/tabs.tsx
+src/features/admin/AdminCategories.tsx
+src/features/admin/AdminIngredients.tsx
+src/features/admin/AdminProducts.tsx
+src/features/admin/AdminStaff.tsx
+src/features/admin/AdminTables.tsx
 src/features/auth/AgeVerificationModal.tsx
 src/features/auth/AuthForm.tsx
 src/features/cart/CartDrawer.tsx
@@ -79,6 +84,8 @@ src/hooks/useOrders.ts
 src/hooks/useProductStats.ts
 src/hooks/useReviews.ts
 src/hooks/useServiceCall.ts
+src/hooks/useStaffData.ts
+src/hooks/useStaffOrders.ts
 src/i18n/config.ts
 src/i18n/locales/en.json
 src/i18n/locales/pl.json
@@ -88,19 +95,24 @@ src/layouts/BottomNav.tsx
 src/lib/utils.ts
 src/main.tsx
 src/pages/AboutPage.tsx
+src/pages/AdminDashboard.tsx
 src/pages/CategoryPage.tsx
 src/pages/FavoritesPage.tsx
 src/pages/HomePage.tsx
 src/pages/LegalPage.tsx
 src/pages/ProfilePage.tsx
 src/pages/SettingsPage.tsx
+src/pages/StaffDashboard.tsx
+src/routes/AdminRoute.tsx
 src/routes/index.tsx
+src/routes/StaffRoute.tsx
 src/store/useAppStore.ts
 src/types/menu.ts
 tailwind.config.js
 tsconfig.app.json
 tsconfig.json
 tsconfig.node.json
+vercel.json
 vite-env.d.ts
 vite.config.ts
 </directory_structure>
@@ -108,25 +120,1390 @@ vite.config.ts
 <files>
 This section contains the contents of the repository's files.
 
-<file path="src/hooks/useProductStats.ts">
-import { useQuery } from '@tanstack/react-query'
-import { supabase } from '../api/supabase'
+<file path="src/features/admin/AdminCategories.tsx">
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Plus, Trash2, Edit, X, EyeOff } from 'lucide-react'
+import { supabase } from '../../api/supabase'
+import { useCategories } from '../../hooks/useMenu'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { useAppStore } from '../../store/useAppStore'
 
-export const useProductStats = (productId: string) => {
-  return useQuery({
-    queryKey: ['productStats', productId],
-    queryFn: async () => {
-      const [reviewsRes, favsRes] = await Promise.all([
-        supabase.from('reviews').select('*', { count: 'exact', head: true }).eq('product_id', productId),
-        supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('product_id', productId)
-      ])
-      
-      return {
-        reviewsCount: reviewsRes.count || 0,
-        likesCount: favsRes.count || 0
+export function AdminCategories() {
+  const { t } = useTranslation()
+  const { data: categories, refetch } = useCategories()
+  const { showAlert } = useAppStore()
+  
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  
+  const [formData, setFormData] = useState({
+    name_pl: '', name_ua: '', name_en: '', slug: '', sort_order: 0, image_url: '', is_active: true
+  })
+
+  const handleOpenAdd = () => {
+    setEditingId(null)
+    setFormData({ name_pl: '', name_ua: '', name_en: '', slug: '', sort_order: 0, image_url: '', is_active: true })
+    setIsFormOpen(true)
+  }
+
+  const handleOpenEdit = (cat: any) => {
+    setEditingId(cat.id)
+    setFormData({
+      name_pl: cat.name.pl || '',
+      name_ua: cat.name.ua || '',
+      name_en: cat.name.en || '',
+      slug: cat.slug,
+      sort_order: cat.sort_order,
+      image_url: cat.image_url || '',
+      is_active: cat.is_active
+    })
+    setIsFormOpen(true)
+  }
+
+  const handleSave = async () => {
+    if (!formData.name_pl || !formData.slug) {
+      showAlert(t('attention'), t('pl_slug_required'))
+      return
+    }
+
+    const payload = {
+      name: { pl: formData.name_pl, ua: formData.name_ua, en: formData.name_en },
+      slug: formData.slug,
+      sort_order: formData.sort_order,
+      image_url: formData.image_url,
+      is_active: formData.is_active
+    }
+
+    let error;
+
+    if (editingId) {
+      const res = await supabase.from('categories').update(payload).eq('id', editingId)
+      error = res.error
+    } else {
+      const res = await supabase.from('categories').insert([payload])
+      error = res.error
+    }
+
+    if (error) {
+      showAlert(t('error'), error.message)
+    } else {
+      setIsFormOpen(false)
+      refetch()
+    }
+  }
+
+  const handleDeleteClick = (id: string, name: string) => {
+    showAlert(
+      t('attention'), 
+      `${t('delete_category_confirm')} "${name}"?`,
+      async () => {
+        const { error } = await supabase.from('categories').delete().eq('id', id)
+        if (error) showAlert(t('error'), error.message)
+        else refetch()
       }
+    )
+  }
+
+  return (
+    <div className="space-y-4 animate-in fade-in">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold">{t('admin_categories_title')}</h2>
+        {!isFormOpen && (
+          <Button onClick={handleOpenAdd}>
+            <Plus className="h-4 w-4 mr-2" /> {t('add')}
+          </Button>
+        )}
+      </div>
+
+      {isFormOpen && (
+        <div className="bg-card p-5 rounded-2xl border border-border shadow-sm space-y-4 animate-in zoom-in-95">
+          <div className="flex justify-between items-center border-b border-border/50 pb-2">
+            <h3 className="font-semibold">{editingId ? t('edit_category') : t('new_category')}</h3>
+            <Button variant="ghost" size="icon" onClick={() => setIsFormOpen(false)} className="h-8 w-8">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground ml-1">{t('name_pl_req')}</label>
+              <Input value={formData.name_pl} onChange={e => setFormData({...formData, name_pl: e.target.value})} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground ml-1">{t('name_ua')}</label>
+                <Input value={formData.name_ua} onChange={e => setFormData({...formData, name_ua: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground ml-1">{t('name_en')}</label>
+                <Input value={formData.name_en} onChange={e => setFormData({...formData, name_en: e.target.value})} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground ml-1">{t('slug_req')}</label>
+                <Input value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value.toLowerCase()})} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground ml-1">{t('sort_order')}</label>
+                <Input type="number" value={formData.sort_order} onChange={e => setFormData({...formData, sort_order: parseInt(e.target.value) || 0})} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground ml-1">{t('image_url_label')}</label>
+              <Input value={formData.image_url} onChange={e => setFormData({...formData, image_url: e.target.value})} />
+            </div>
+            <div className="flex items-center gap-2 pt-1 pl-1">
+              <input 
+                type="checkbox" 
+                checked={formData.is_active} 
+                onChange={e => setFormData({...formData, is_active: e.target.checked})} 
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              />
+              <label className="text-sm font-medium cursor-pointer" onClick={() => setFormData({...formData, is_active: !formData.is_active})}>
+                {t('is_active_label')}
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setIsFormOpen(false)}>{t('cancel')}</Button>
+            <Button onClick={handleSave}>{editingId ? t('save_changes') : t('create')}</Button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+        {categories?.map((cat) => (
+          <div key={cat.id} className={`flex items-center justify-between p-4 border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors ${!cat.is_active ? 'opacity-50' : ''}`}>
+            <div className="flex items-center gap-4">
+              {cat.image_url ? (
+                <div className="h-12 w-12 rounded-lg bg-muted overflow-hidden shrink-0">
+                  <img src={cat.image_url} alt="" className="h-full w-full object-cover" />
+                </div>
+              ) : (
+                <div className="h-12 w-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                  <span className="text-xs text-muted-foreground">No img</span>
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold">{cat.name.pl}</p>
+                  {!cat.is_active && <EyeOff className="h-3 w-3 text-destructive" />}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-md">/{cat.slug}</span>
+                  <span className="text-[10px] text-muted-foreground">Sort: {cat.sort_order}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="icon" onClick={() => handleOpenEdit(cat)}>
+                <Edit className="h-4 w-4 text-primary" />
+              </Button>
+              <Button variant="ghost" size="icon" className="hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDeleteClick(cat.id, cat.name.pl)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+        {(!categories || categories.length === 0) && (
+          <div className="p-8 text-center text-muted-foreground">
+            {t('no_categories')}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+</file>
+
+<file path="src/features/admin/AdminIngredients.tsx">
+import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Plus, Trash2, Edit, X } from 'lucide-react'
+import { supabase } from '../../api/supabase'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { useAppStore } from '../../store/useAppStore'
+
+export function AdminIngredients() {
+  const { t, i18n } = useTranslation()
+  const { showAlert } = useAppStore()
+  
+  const [ingredients, setIngredients] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  
+  const [formData, setFormData] = useState({
+    name_pl: '', name_ua: '', name_en: '',
+    type: '',
+    price_extra: '' as string | number,
+    is_free_selection: false,
+    is_available: true
+  })
+
+  const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
+
+  const fetchIngredients = useCallback(async () => {
+    setLoading(true)
+    const { data, error } = await supabase.from('ingredients').select('*').order('type')
+    if (!error && data) setIngredients(data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    fetchIngredients()
+  }, [fetchIngredients])
+
+  const handleOpenAdd = () => {
+    setEditingId(null)
+    setFormData({
+      name_pl: '', name_ua: '', name_en: '',
+      type: '', price_extra: '',
+      is_free_selection: false, is_available: true
+    })
+    setIsFormOpen(true)
+  }
+
+  const handleOpenEdit = (ing: any) => {
+    setEditingId(ing.id)
+    setFormData({
+      name_pl: ing.name.pl || '', name_ua: ing.name.ua || '', name_en: ing.name.en || '',
+      type: ing.type || '',
+      price_extra: ing.price_extra || 0,
+      is_free_selection: ing.is_free_selection,
+      is_available: ing.is_available
+    })
+    setIsFormOpen(true)
+  }
+
+  const handleSave = async () => {
+    if (!formData.name_pl || !formData.type) {
+      showAlert(t('attention'), t('ing_fields_required'))
+      return
+    }
+
+    const payload = {
+      name: { pl: formData.name_pl, ua: formData.name_ua, en: formData.name_en },
+      type: formData.type.toLowerCase(),
+      price_extra: parseFloat(formData.price_extra.toString()) || 0,
+      is_free_selection: formData.is_free_selection,
+      is_available: formData.is_available
+    }
+
+    const { error } = editingId 
+      ? await supabase.from('ingredients').update(payload).eq('id', editingId)
+      : await supabase.from('ingredients').insert([payload])
+
+    if (error) {
+      showAlert(t('error'), error.message)
+    } else {
+      setIsFormOpen(false)
+      fetchIngredients()
+    }
+  }
+
+  const handleDelete = (id: string, name: string) => {
+    showAlert(t('attention'), `${t('delete_confirm')} "${name}"?`, async () => {
+      const { error } = await supabase.from('ingredients').delete().eq('id', id)
+      if (error) showAlert(t('error'), error.message)
+      else fetchIngredients()
+    })
+  }
+
+  const toggleAvailability = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase.from('ingredients').update({ is_available: !currentStatus }).eq('id', id)
+    if (error) showAlert(t('error'), error.message)
+    else fetchIngredients()
+  }
+
+  return (
+    <div className="space-y-4 animate-in fade-in pb-10">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold">{t('admin_ingredients_title')}</h2>
+        {!isFormOpen && <Button onClick={handleOpenAdd}><Plus className="h-4 w-4 mr-2" /> {t('add')}</Button>}
+      </div>
+
+      {isFormOpen && (
+        <div className="bg-card p-5 rounded-2xl border border-border shadow-sm space-y-4 animate-in zoom-in-95">
+          <div className="flex justify-between items-center border-b border-border/50 pb-2">
+            <h3 className="font-semibold">{editingId ? t('edit') : t('new_ingredient')}</h3>
+            <Button variant="ghost" size="icon" onClick={() => setIsFormOpen(false)} className="h-8 w-8"><X className="h-4 w-4" /></Button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid gap-3">
+              <label className="text-xs font-medium ml-1">{t('name')} (PL*, UA, EN)</label>
+              <Input placeholder="Polski *" value={formData.name_pl} onChange={e => setFormData({...formData, name_pl: e.target.value})} />
+              <div className="grid grid-cols-2 gap-3">
+                <Input placeholder="Українська" value={formData.name_ua} onChange={e => setFormData({...formData, name_ua: e.target.value})} />
+                <Input placeholder="English" value={formData.name_en} onChange={e => setFormData({...formData, name_en: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-xs font-medium ml-1">{t('ing_type')} *</label>
+                <Input placeholder="milk, syrup, alcohol..." value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium ml-1">{t('price_extra')}</label>
+                <Input type="number" placeholder="0.00" value={formData.price_extra} onChange={e => setFormData({...formData, price_extra: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 p-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={formData.is_available} onChange={e => setFormData({...formData, is_available: e.target.checked})} className="h-4 w-4 rounded text-primary" />
+                <span className="text-sm">{t('is_available_label')}</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={formData.is_free_selection} onChange={e => setFormData({...formData, is_free_selection: e.target.checked})} className="h-4 w-4 rounded text-primary" />
+                <div>
+                  <span className="text-sm block">{t('is_free_selection')}</span>
+                  <span className="text-[10px] text-muted-foreground">{t('is_free_desc')}</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="ghost" onClick={() => setIsFormOpen(false)}>{t('cancel')}</Button>
+            <Button onClick={handleSave}>{editingId ? t('save_changes') : t('create')}</Button>
+          </div>
+        </div>
+      )}
+
+      {!loading && !isFormOpen && (
+        <div className="grid gap-3">
+          {ingredients?.map((ing) => (
+            <div key={ing.id} className={`bg-card p-4 rounded-2xl border border-border flex items-center justify-between ${!ing.is_available ? 'opacity-60' : ''}`}>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold">{ing.name[currentLang] || ing.name.pl}</p>
+                  <span className="font-bold text-primary text-sm">+{ing.price_extra} zł</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground bg-secondary px-2 py-0.5 rounded-md">{ing.type}</span>
+                  {ing.is_free_selection && <span className="text-[10px] text-green-500 bg-green-500/10 px-2 py-0.5 rounded-md">{t('free_selection_badge')}</span>}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <Button variant={ing.is_available ? 'ghost' : 'default'} size="sm" className="h-8 px-2 text-[10px]" onClick={() => toggleAvailability(ing.id, ing.is_available)}>
+                  {ing.is_available ? t('hide') : t('show')}
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleOpenEdit(ing)}>
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(ing.id, ing.name.pl)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          {ingredients.length === 0 && <p className="text-center text-muted-foreground p-4">{t('no_ingredients')}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+</file>
+
+<file path="src/features/admin/AdminProducts.tsx">
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Plus, Trash2, Edit, X, ImageIcon, Search } from 'lucide-react'
+import { supabase } from '../../api/supabase'
+import { useProducts, useCategories } from '../../hooks/useMenu'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { useAppStore } from '../../store/useAppStore'
+
+export function AdminProducts() {
+  const { t, i18n } = useTranslation()
+  const { data: products, refetch: refetchProducts } = useProducts()
+  const { data: categories } = useCategories()
+  const { showAlert } = useAppStore()
+  
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+
+  const [formData, setFormData] = useState({
+    category_id: '',
+    name_pl: '', name_ua: '', name_en: '',
+    description_pl: '', description_ua: '', description_en: '',
+    price: '' as string | number, 
+    bonus_reward: '' as string | number, 
+    bonus_price: '' as string | number,
+    image_url: '', is_available: true, is_constructor: false,
+    allergens: '', tags: ''
+  })
+
+  const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
+
+  const filteredProducts = products?.filter(p => {
+    const matchesSearch = p.name[currentLang]?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          p.name.pl.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesCategory = selectedCategory === 'all' || p.category_id === selectedCategory
+    return matchesSearch && matchesCategory
+  })
+
+  const handleOpenAdd = () => {
+    setEditingId(null)
+    setFormData({
+      category_id: categories?.[0]?.id || '',
+      name_pl: '', name_ua: '', name_en: '',
+      description_pl: '', description_ua: '', description_en: '',
+      price: '', bonus_reward: '', bonus_price: '',
+      image_url: '', is_available: true, is_constructor: false,
+      allergens: '', tags: ''
+    })
+    setIsFormOpen(true)
+  }
+
+  const handleOpenEdit = (p: any) => {
+    setEditingId(p.id)
+    setFormData({
+      category_id: p.category_id,
+      name_pl: p.name.pl || '', name_ua: p.name.ua || '', name_en: p.name.en || '',
+      description_pl: p.description?.pl || '', description_ua: p.description?.ua || '', description_en: p.description?.en || '',
+      price: p.price,
+      bonus_reward: p.bonus_reward,
+      bonus_price: p.bonus_price?.toString() || '',
+      image_url: p.image_url || '',
+      is_available: p.is_available,
+      is_constructor: p.is_constructor,
+      allergens: p.allergens?.join(', ') || '',
+      tags: p.tags?.join(', ') || ''
+    })
+    setIsFormOpen(true)
+  }
+
+  const handleSave = async () => {
+    if (!formData.name_pl || !formData.price || !formData.category_id) {
+      showAlert(t('attention'), t('fields_required'))
+      return
+    }
+
+    // Виправлення помилки TS: String() гарантує, що ми передаємо рядок
+    const payload = {
+      category_id: formData.category_id,
+      name: { pl: formData.name_pl, ua: formData.name_ua, en: formData.name_en },
+      description: { pl: formData.description_pl, ua: formData.description_ua, en: formData.description_en },
+      price: parseFloat(String(formData.price)),
+      bonus_reward: parseInt(String(formData.bonus_reward)) || 0,
+      bonus_price: formData.bonus_price ? parseInt(String(formData.bonus_price)) : null,
+      image_url: formData.image_url,
+      is_available: formData.is_available,
+      is_constructor: formData.is_constructor,
+      allergens: formData.allergens.split(',').map(s => s.trim()).filter(Boolean),
+      tags: formData.tags.split(',').map(s => s.trim()).filter(Boolean)
+    }
+
+    const { error } = editingId 
+      ? await supabase.from('products').update(payload).eq('id', editingId)
+      : await supabase.from('products').insert([payload])
+
+    if (error) showAlert(t('error'), error.message)
+    else {
+      setIsFormOpen(false)
+      refetchProducts()
+    }
+  }
+
+  const toggleAvailability = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase.from('products').update({ is_available: !currentStatus }).eq('id', id)
+    if (error) showAlert(t('error'), error.message)
+    else refetchProducts()
+  }
+
+  return (
+    <div className="space-y-4 animate-in fade-in pb-10">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold">{t('admin_products_title')}</h2>
+        {!isFormOpen && <Button onClick={handleOpenAdd}><Plus className="h-4 w-4 mr-2" /> {t('add')}</Button>}
+      </div>
+
+      {!isFormOpen && (
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input className="pl-9 bg-card" placeholder={t('search_placeholder')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+            <Button variant={selectedCategory === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setSelectedCategory('all')} className="rounded-full shrink-0">
+              {t('all')}
+            </Button>
+            {categories?.map(cat => (
+              <Button key={cat.id} variant={selectedCategory === cat.id ? 'default' : 'outline'} size="sm" onClick={() => setSelectedCategory(cat.id)} className="rounded-full shrink-0">
+                {cat.name[currentLang] || cat.name.pl}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isFormOpen && (
+        <div className="bg-card p-5 rounded-2xl border border-border shadow-sm space-y-4 animate-in zoom-in-95">
+          <div className="flex justify-between items-center border-b border-border/50 pb-2">
+            <h3 className="font-semibold">{editingId ? t('edit_product') : t('new_product')}</h3>
+            <Button variant="ghost" size="icon" onClick={() => setIsFormOpen(false)} className="h-8 w-8"><X className="h-4 w-4" /></Button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-medium ml-1">{t('category')} *</label>
+              <select 
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={formData.category_id}
+                onChange={e => setFormData({...formData, category_id: e.target.value})}
+              >
+                {categories?.map(cat => <option key={cat.id} value={cat.id}>{cat.name.pl}</option>)}
+              </select>
+            </div>
+
+            <div className="grid gap-3">
+              <label className="text-xs font-medium ml-1">{t('name')} (PL*, UA, EN)</label>
+              <Input placeholder="Polski *" value={formData.name_pl} onChange={e => setFormData({...formData, name_pl: e.target.value})} />
+              <div className="grid grid-cols-2 gap-3">
+                <Input placeholder="Українська" value={formData.name_ua} onChange={e => setFormData({...formData, name_ua: e.target.value})} />
+                <Input placeholder="English" value={formData.name_en} onChange={e => setFormData({...formData, name_en: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-xs font-medium ml-1">{t('price_settings')}</label>
+              <div className="grid grid-cols-3 gap-3">
+                <Input type="number" placeholder={t('price')} value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
+                <Input type="number" placeholder={t('bonus_reward')} value={formData.bonus_reward} onChange={e => setFormData({...formData, bonus_reward: e.target.value})} />
+                <Input type="number" placeholder={t('bonus_price')} value={formData.bonus_price} onChange={e => setFormData({...formData, bonus_price: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium ml-1">{t('image_url_label')}</label>
+              <Input value={formData.image_url} onChange={e => setFormData({...formData, image_url: e.target.value})} />
+            </div>
+
+            <div className="flex gap-4 p-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={formData.is_available} onChange={e => setFormData({...formData, is_available: e.target.checked})} className="h-4 w-4 rounded text-primary" />
+                <span className="text-sm">{t('is_available_label')}</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={formData.is_constructor} onChange={e => setFormData({...formData, is_constructor: e.target.checked})} className="h-4 w-4 rounded text-primary" />
+                <span className="text-sm">{t('is_constructor')}</span>
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium ml-1">{t('allergens')} ({t('comma_separated')})</label>
+              <Input value={formData.allergens} onChange={e => setFormData({...formData, allergens: e.target.value})} />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="ghost" onClick={() => setIsFormOpen(false)}>{t('cancel')}</Button>
+            <Button onClick={handleSave}>{editingId ? t('save_changes') : t('create')}</Button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-3">
+        {filteredProducts?.map((p) => (
+          <div key={p.id} className={`bg-card rounded-2xl border border-border overflow-hidden flex flex-col ${!p.is_available ? 'opacity-60' : ''}`}>
+            <div className="flex p-3 gap-3">
+              <div className="h-20 w-20 rounded-xl bg-muted shrink-0 overflow-hidden relative">
+                {p.image_url ? <img src={p.image_url} className="h-full w-full object-cover" /> : <ImageIcon className="h-full w-full p-5 text-muted-foreground/20" />}
+              </div>
+              <div className="flex-1 min-w-0 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-sm truncate">{p.name[currentLang] || p.name.pl}</h4>
+                    <span className="font-bold text-primary text-sm">{p.price} zł</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground truncate">{categories?.find(c => c.id === p.category_id)?.name.pl}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="h-8 px-2 text-[10px]" onClick={() => handleOpenEdit(p)}><Edit className="h-3.5 w-3.5 mr-1" /> {t('edit')}</Button>
+                  <Button variant={p.is_available ? 'outline' : 'default'} size="sm" className="h-8 px-2 text-[10px]" onClick={() => toggleAvailability(p.id, p.is_available)}>
+                    {p.is_available ? t('hide') : t('show')}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 px-2 text-[10px] text-destructive ml-auto" onClick={() => showAlert(t('attention'), t('delete_confirm'), async () => { await supabase.from('products').delete().eq('id', p.id); refetchProducts(); })}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+</file>
+
+<file path="src/features/admin/AdminStaff.tsx">
+import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import { supabase } from '../../api/supabase'
+import { Badge } from '../../components/ui/badge'
+import { ShieldAlert, Shield, Star, UserMinus, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { Input } from '../../components/ui/input'
+import { Button } from '../../components/ui/button'
+import { useAppStore } from '../../store/useAppStore'
+
+export function AdminStaff() {
+  const { t } = useTranslation()
+  const { user, showAlert } = useAppStore()
+  const [staff, setStaff] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newEmail, setNewEmail] = useState('')
+
+  const fetchStaff = useCallback(async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('role', ['admin', 'staff', 'super_admin'])
+    
+    if (!error && data) {
+      const sorted = data.sort((a, b) => {
+        const order = { super_admin: 0, admin: 1, staff: 2 }
+        return (order[a.role as keyof typeof order] ?? 3) - (order[b.role as keyof typeof order] ?? 3)
+      })
+      setStaff(sorted)
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    fetchStaff()
+  }, [fetchStaff])
+
+  const canIEdit = (targetMember: any) => {
+    if (!user) return false
+    if (targetMember.id === user.id) return false
+    if (targetMember.role === 'super_admin') return false
+    
+    if (user.role === 'super_admin') return true
+    if (user.role === 'admin') {
+      return targetMember.role === 'staff' || targetMember.role === 'admin'
+    }
+    return false
+  }
+
+  const handleUpdateRole = async (targetUserId: string, newRole: string) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', targetUserId)
+
+    if (error) showAlert(t('error'), error.message)
+    else fetchStaff()
+  }
+
+  const handleAddStaff = async () => {
+    if (!newEmail.trim()) return
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('email', newEmail.trim().toLowerCase())
+      .single()
+
+    if (error || !data) {
+      showAlert(t('error'), t('user_not_found'))
+      return
+    }
+
+    if (data.role !== 'user') {
+      showAlert(t('attention'), t('user_already_team'))
+      return
+    }
+
+    await handleUpdateRole(data.id, 'staff')
+    setNewEmail('')
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-xl font-bold">{t('admin_staff_title')}</h2>
+        <div className="flex gap-2">
+          <Input 
+            placeholder={t('staff_email_placeholder')} 
+            value={newEmail} 
+            onChange={(e) => setNewEmail(e.target.value)}
+            className="bg-card"
+          />
+          <Button onClick={handleAddStaff}>{t('add')}</Button>
+        </div>
+      </div>
+      
+      {loading ? (
+        <p className="p-4 text-center text-muted-foreground">{t('loading')}</p>
+      ) : (
+        <div className="grid gap-3">
+          {staff.map((member) => (
+            <div key={member.id} className={`bg-card p-4 rounded-2xl border border-border flex items-center justify-between gap-2 overflow-hidden ${member.id === user?.id ? 'ring-1 ring-primary/30' : ''}`}>
+              
+              <div className="flex items-center gap-3 overflow-hidden flex-1">
+                <div className={`p-3 rounded-full shrink-0 ${
+                  member.role === 'super_admin' ? 'bg-red-500/10' : 
+                  member.role === 'admin' ? 'bg-primary/10' : 'bg-green-500/10'
+                }`}>
+                  {member.role === 'super_admin' ? <ShieldAlert className="h-6 w-6 text-red-500" /> : 
+                   member.role === 'admin' ? <Shield className="h-6 w-6 text-primary" /> : <Star className="h-6 w-6 text-green-500" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-sm truncate">
+                    {member.email} {member.id === user?.id && `(${t('it_is_you')})`}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {member.phone ? `${t('phone')}: ${member.phone}` : t('no_phone')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                {canIEdit(member) && (
+                  <div className="flex items-center gap-1 mr-1">
+                    {member.role === 'staff' ? (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleUpdateRole(member.id, 'admin')}>
+                        <ArrowUpCircle className="h-4 w-4" />
+                      </Button>
+                    ) : member.role === 'admin' ? (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-orange-500" onClick={() => handleUpdateRole(member.id, 'staff')}>
+                        <ArrowDownCircle className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                    
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => showAlert(t('attention'), t('remove_staff_confirm'), () => handleUpdateRole(member.id, 'user'))}>
+                      <UserMinus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                <Badge variant={member.role === 'super_admin' ? 'destructive' : member.role === 'admin' ? 'default' : 'secondary'}>
+                  {member.role.replace('_', ' ').toUpperCase()}
+                </Badge>
+              </div>
+
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+</file>
+
+<file path="src/features/admin/AdminTables.tsx">
+import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Plus, Trash2, Copy, ExternalLink, QrCode } from 'lucide-react'
+import { supabase } from '../../api/supabase'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { useAppStore } from '../../store/useAppStore'
+
+export function AdminTables() {
+  const { t } = useTranslation()
+  const { showAlert } = useAppStore()
+  const [tables, setTables] = useState<any[]>([])
+  const [newTableNumber, setNewTableNumber] = useState('')
+
+  const fetchTables = async () => {
+    const { data } = await supabase.from('tables').select('*').order('number')
+    if (data) setTables(data)
+  }
+
+  useEffect(() => { fetchTables() }, [])
+
+  const handleAddTable = async () => {
+    if (!newTableNumber) return
+    const { error } = await supabase.from('tables').insert([{ number: newTableNumber }])
+    if (error) showAlert(t('error'), error.message)
+    else {
+      setNewTableNumber('')
+      fetchTables()
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    showAlert(t('attention'), t('delete_table_confirm'), async () => {
+      await supabase.from('tables').delete().eq('id', id)
+      fetchTables()
+    })
+  }
+
+  const getTableUrl = (num: string) => `${window.location.origin}/?table=${num}`
+
+  const copyToClipboard = (num: string) => {
+    navigator.clipboard.writeText(getTableUrl(num))
+    showAlert(t('success'), t('link_copied'))
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-xl font-bold">{t('admin_tables_title')}</h2>
+        <div className="flex gap-2">
+          <Input 
+            placeholder={t('table_number_placeholder')} 
+            value={newTableNumber} 
+            onChange={(e) => setNewTableNumber(e.target.value)}
+          />
+          <Button onClick={handleAddTable}><Plus className="h-4 w-4 mr-2" /> {t('add')}</Button>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {tables.map((table) => (
+          <div key={table.id} className="bg-card p-4 rounded-2xl border border-border space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
+                  <QrCode className="h-6 w-6" />
+                </div>
+                <span className="text-lg font-bold">{t('table')} №{table.number}</span>
+              </div>
+              <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(table.id)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="flex gap-2">
+              <Input readOnly value={getTableUrl(table.number)} className="text-[10px] h-8 bg-muted" />
+              <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => copyToClipboard(table.number)}>
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => window.open(getTableUrl(table.number), '_blank')}>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+</file>
+
+<file path="src/hooks/useStaffData.ts">
+import { useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '../api/supabase'
+import { Order, OrderStatus } from '../types/menu'
+
+export interface ServiceCall {
+  id: string
+  table_id: string
+  type: string
+  status: string
+  created_at: string
+}
+
+export const useStaffData = () => {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    const ordersChannel = supabase
+      .channel('staff-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['staff-orders'] })
+      })
+      .subscribe()
+
+    const serviceChannel = supabase
+      .channel('staff-service')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_calls' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['service-calls'] })
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(ordersChannel)
+      supabase.removeChannel(serviceChannel)
+    }
+  }, [queryClient])
+
+  const { data: tables = [], isLoading: tablesLoading } = useQuery({
+    queryKey: ['tables'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('tables').select('*').order('table_number')
+      if (error) throw new Error(error.message)
+      return data
     }
   })
+
+  const { data: orders = [], isLoading: ordersLoading } = useQuery({
+    queryKey: ['staff-orders'],
+    queryFn: async () => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .gte('created_at', today.toISOString())
+        .order('created_at', { ascending: false })
+      if (error) throw new Error(error.message)
+      return data as Order[]
+    }
+  })
+
+  const { data: serviceCalls = [], isLoading: callsLoading } = useQuery({
+    queryKey: ['service-calls'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('service_calls')
+        .select('*')
+        .eq('status', 'new')
+      if (error) throw new Error(error.message)
+      return data as ServiceCall[]
+    }
+  })
+
+  return {
+    tables,
+    orders,
+    serviceCalls,
+    isLoading: tablesLoading || ordersLoading || callsLoading
+  }
+}
+
+export const useResolveServiceCall = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (callId: string) => {
+      const { error } = await supabase
+        .from('service_calls')
+        .update({ status: 'completed' })
+        .eq('id', callId)
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service-calls'] })
+    }
+  })
+}
+</file>
+
+<file path="src/hooks/useStaffOrders.ts">
+import { useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '../api/supabase'
+import { Order, OrderStatus } from '../types/menu'
+
+export const useStaffOrders = () => {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('staff-orders-all')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['staff-orders'] })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [queryClient])
+
+  return useQuery({
+    queryKey: ['staff-orders'],
+    queryFn: async () => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .gte('created_at', today.toISOString())
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return data as Order[]
+    },
+  })
+}
+
+export const useUpdateOrderStatus = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ 
+      orderId, 
+      status, 
+      staffId 
+    }: { 
+      orderId: string
+      status: OrderStatus
+      staffId?: string 
+    }) => {
+      const updateData: Partial<Order> = { 
+        status, 
+        updated_at: new Date().toISOString() 
+      }
+      
+      if (staffId !== undefined) {
+        updateData.assigned_staff_id = staffId
+      }
+
+      if (status === 'completed') {
+        updateData.is_paid = true
+      }
+
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staff-orders'] })
+    }
+  })
+}
+</file>
+
+<file path="src/pages/AdminDashboard.tsx">
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { LogOut, Package, LayoutGrid, Users, ChevronLeft, Coffee, QrCode } from 'lucide-react'
+import { supabase } from '../api/supabase'
+import { Button } from '../components/ui/button'
+
+import { AdminStaff } from '../features/admin/AdminStaff'
+import { AdminCategories } from '../features/admin/AdminCategories'
+import { AdminProducts } from '../features/admin/AdminProducts'
+import { AdminIngredients } from '../features/admin/AdminIngredients'
+import { AdminTables } from '../features/admin/AdminTables'
+
+export function AdminDashboard() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<'menu' | 'categories' | 'products' | 'staff' | 'ingredients' | 'tables'>('menu')
+
+  return (
+    <div className="min-h-screen bg-muted/20 pb-24">
+      <header className="bg-background border-b border-border p-4 sticky top-0 z-40 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          {activeTab !== 'menu' && (
+            <Button variant="ghost" size="icon" onClick={() => setActiveTab('menu')}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          )}
+          <h1 className="text-xl font-bold text-primary">Bar Admin</h1>
+        </div>
+        <Button variant="ghost" size="icon" onClick={() => { supabase.auth.signOut(); navigate('/') }}>
+          <LogOut className="h-5 w-5 text-destructive" />
+        </Button>
+      </header>
+
+      <main className="p-4 space-y-4">
+        {activeTab === 'menu' && (
+          <>
+            <h2 className="text-2xl font-bold mb-6">{t('admin_panel')}</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <Button variant="outline" className="h-28 flex flex-col gap-2 rounded-2xl shadow-sm bg-card" onClick={() => setActiveTab('products')}>
+                <Package className="h-7 w-7 text-primary" />
+                <span className="font-semibold">{t('admin_products')}</span>
+              </Button>
+              <Button variant="outline" className="h-28 flex flex-col gap-2 rounded-2xl shadow-sm bg-card" onClick={() => setActiveTab('categories')}>
+                <LayoutGrid className="h-7 w-7 text-orange-500" />
+                <span className="font-semibold">{t('admin_categories')}</span>
+              </Button>
+              <Button variant="outline" className="h-28 flex flex-col gap-2 rounded-2xl shadow-sm bg-card" onClick={() => setActiveTab('ingredients')}>
+                <Coffee className="h-7 w-7 text-yellow-600" />
+                <span className="font-semibold">{t('admin_ingredients')}</span>
+              </Button>
+              <Button variant="outline" className="h-28 flex flex-col gap-2 rounded-2xl shadow-sm bg-card" onClick={() => setActiveTab('tables')}>
+                <QrCode className="h-7 w-7 text-blue-500" />
+                <span className="font-semibold">{t('admin_tables')}</span>
+              </Button>
+              <Button variant="outline" className="h-28 flex flex-col gap-2 rounded-2xl shadow-sm bg-card col-span-2" onClick={() => setActiveTab('staff')}>
+                <Users className="h-7 w-7 text-green-500" />
+                <span className="font-semibold">{t('admin_staff')}</span>
+              </Button>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'categories' && <AdminCategories />}
+        {activeTab === 'staff' && <AdminStaff />}
+        {activeTab === 'products' && <AdminProducts />}
+        {activeTab === 'ingredients' && <AdminIngredients />}
+        {activeTab === 'tables' && <AdminTables />}
+      </main>
+    </div>
+  )
+}
+</file>
+
+<file path="src/pages/StaffDashboard.tsx">
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useStaffData, useResolveServiceCall } from '../hooks/useStaffData'
+import { useUpdateOrderStatus } from '../hooks/useStaffOrders'
+import { useAppStore } from '../store/useAppStore'
+import { Button } from '../components/ui/button'
+import { Badge } from '../components/ui/badge'
+import { getLocalized } from '../lib/utils'
+import { OrderStatus } from '../types/menu'
+import { Grid2x2, ListTodo, Bell, Wind, Martini, CheckCircle2 } from 'lucide-react'
+
+export function StaffDashboard() {
+  const { t, i18n } = useTranslation()
+  const { user } = useAppStore()
+  const currentLang = i18n.language
+  
+  const [activeTab, setActiveTab] = useState<'hall' | 'orders'>('hall')
+  
+  const { tables, orders, serviceCalls, isLoading } = useStaffData()
+  const { mutate: updateStatus } = useUpdateOrderStatus()
+  const { mutate: resolveCall } = useResolveServiceCall()
+
+  const handleStatusChange = (orderId: string, status: OrderStatus) => {
+    updateStatus({ orderId, status, staffId: user?.id })
+  }
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-muted-foreground">{t('loading')}</div>
+  }
+
+  const columns: { id: OrderStatus; title: string }[] = [
+    { id: 'new', title: 'Нові' },
+    { id: 'preparing', title: 'Готуються' },
+    { id: 'served', title: 'Подано' }
+  ]
+
+  const getTableStatus = (tableId: string) => {
+    const tableOrders = orders.filter(o => o.table_id === tableId && ['new', 'preparing', 'served'].includes(o.status))
+    const tableCalls = serviceCalls.filter(c => c.table_id === tableId)
+    
+    return {
+      isOccupied: tableOrders.length > 0,
+      calls: tableCalls,
+      activeOrdersCount: tableOrders.length
+    }
+  }
+
+  const getServiceIcon = (type: string) => {
+    switch (type) {
+      case 'shisha': return <Wind className="h-5 w-5" />
+      case 'bartender': return <Martini className="h-5 w-5" />
+      default: return <Bell className="h-5 w-5" />
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-muted/20 pb-24 p-4">
+      <header className="mb-6 flex flex-col gap-4">
+        <h1 className="text-2xl font-bold">Staff App</h1>
+        <div className="flex bg-background p-1 rounded-xl border border-border">
+          <button
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === 'hall' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'}`}
+            onClick={() => setActiveTab('hall')}
+          >
+            <Grid2x2 className="h-4 w-4" /> Зал
+          </button>
+          <button
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'}`}
+            onClick={() => setActiveTab('orders')}
+          >
+            <ListTodo className="h-4 w-4" /> Замовлення
+            {orders.filter(o => o.status === 'new').length > 0 && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
+                {orders.filter(o => o.status === 'new').length}
+              </span>
+            )}
+          </button>
+        </div>
+      </header>
+
+      {activeTab === 'hall' && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in">
+          {tables.map(table => {
+            const status = getTableStatus(table.id)
+            return (
+              <div 
+                key={table.id} 
+                className={`relative p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center min-h-[120px] shadow-sm
+                  ${status.calls.length > 0 ? 'border-destructive bg-destructive/10 animate-pulse' : 
+                    status.isOccupied ? 'border-orange-500/50 bg-orange-500/10' : 'border-green-500/50 bg-green-500/5'}
+                `}
+              >
+                <span className="text-2xl font-bold mb-1">#{table.table_number || table.id}</span>
+                
+                {status.calls.length > 0 ? (
+                  <div className="flex flex-col items-center gap-2 mt-2 w-full">
+                    <div className="flex gap-1 text-destructive">
+                      {status.calls.map(call => (
+                        <div key={call.id} className="bg-destructive/20 p-1.5 rounded-full" title={call.type}>
+                          {getServiceIcon(call.type)}
+                        </div>
+                      ))}
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="destructive" 
+                      className="w-full text-xs h-8"
+                      onClick={() => status.calls.forEach(call => resolveCall(call.id))}
+                    >
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> Виконано
+                    </Button>
+                  </div>
+                ) : status.isOccupied ? (
+                  <Badge variant="outline" className="border-orange-500 text-orange-600 bg-background">
+                    Активних: {status.activeOrdersCount}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-green-500 text-green-600 bg-background">
+                    Вільний
+                  </Badge>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {activeTab === 'orders' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-right-4">
+          {columns.map((column) => (
+            <div key={column.id} className="flex flex-col gap-4">
+              <div className="bg-background border border-border rounded-xl p-3 shadow-sm font-bold flex justify-between items-center">
+                {column.title}
+                <span className="bg-muted px-2 py-0.5 rounded-full text-sm">
+                  {orders?.filter((o) => o.status === column.id).length || 0}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {orders?.filter((o) => o.status === column.id).map((order) => (
+                  <div key={order.id} className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+                    <div className="flex justify-between items-start mb-3 border-b border-border/50 pb-3">
+                      <div>
+                        <span className="font-bold text-lg text-primary">{t('table')} #{order.table_id}</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(order.created_at).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      <span className="font-bold">{order.total_price} zł</span>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      {order.items.map((item, idx) => (
+                        <div key={idx} className="text-sm">
+                          <span className="font-bold">{item.quantity}x</span> {getLocalized(item.name, currentLang)}
+                          {item.selected_ingredients && item.selected_ingredients.length > 0 && (
+                            <p className="text-xs text-muted-foreground ml-5">
+                              + {item.selected_ingredients.map((ing) => getLocalized(ing.name, currentLang)).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2 mt-auto">
+                      {order.status === 'new' && (
+                        <Button className="w-full" onClick={() => handleStatusChange(order.id, 'preparing')}>Взяти в роботу</Button>
+                      )}
+                      {order.status === 'preparing' && (
+                        <Button className="w-full" onClick={() => handleStatusChange(order.id, 'served')}>Готово / Подано</Button>
+                      )}
+                      {order.status === 'served' && (
+                        <Button variant="outline" className="w-full border-green-500 text-green-500 hover:bg-green-500/10" onClick={() => handleStatusChange(order.id, 'completed')}>Оплачено</Button>
+                      )}
+                      {(order.status === 'new' || order.status === 'preparing') && (
+                        <Button variant="ghost" className="text-destructive px-2" onClick={() => handleStatusChange(order.id, 'cancelled')}>Скасувати</Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+</file>
+
+<file path="src/routes/AdminRoute.tsx">
+import { Navigate, Outlet } from 'react-router-dom'
+import { useAppStore } from '../store/useAppStore'
+import { Loader2 } from 'lucide-react'
+
+export function AdminRoute() {
+  const { user, isAuthLoading } = useAppStore()
+
+  // Поки ми чекаємо відповіді від бази даних
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  // Якщо завантаження закінчилось, і користувач не адмін (або не залогінений)
+  if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+  return <Navigate to="/" replace />
+}
+
+  // Якщо все ок — пускаємо в адмінку!
+  return <Outlet />
+}
+</file>
+
+<file path="src/routes/StaffRoute.tsx">
+import { Navigate, Outlet } from 'react-router-dom'
+import { useAppStore } from '../store/useAppStore'
+import { Loader2 } from 'lucide-react'
+
+export function StaffRoute() {
+  const { user, isAuthLoading } = useAppStore()
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!user || !['staff', 'admin', 'super_admin'].includes(user.role)) {
+    return <Navigate to="/" replace />
+  }
+
+  return <Outlet />
 }
 </file>
 
@@ -822,49 +2199,6 @@ export {
 }
 </file>
 
-<file path="src/components/ui/GlobalAlert.tsx">
-import { useTranslation } from 'react-i18next'
-import { AlertCircle, X } from 'lucide-react'
-import { useAppStore } from '../../store/useAppStore'
-import { Button } from './button'
-
-export function GlobalAlert() {
-  const { t } = useTranslation()
-  const { alertConfig, hideAlert } = useAppStore()
-
-  if (!alertConfig.isOpen) return null
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200 px-4 pointer-events-auto">
-      <div className="relative w-full max-w-sm bg-card border border-border shadow-2xl rounded-2xl p-6 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-        <button 
-          onClick={hideAlert}
-          className="absolute top-4 right-4 p-1 rounded-full hover:bg-secondary transition-colors"
-        >
-          <X className="h-5 w-5 text-muted-foreground" />
-        </button>
-        
-        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-          <AlertCircle className="h-6 w-6 text-primary" />
-        </div>
-        
-        <h3 className="text-xl font-bold mb-2 text-foreground">
-          {alertConfig.title}
-        </h3>
-        
-        <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-          {alertConfig.message}
-        </p>
-        
-        <Button className="w-full h-12 text-lg rounded-xl" onClick={hideAlert}>
-          {t('ok')}
-        </Button>
-      </div>
-    </div>
-  )
-}
-</file>
-
 <file path="src/components/ui/input.tsx">
 import * as React from "react"
 
@@ -956,6 +2290,7 @@ export function AgeVerificationModal() {
   const { t } = useTranslation()
   const { isAgeVerified, verifyAge } = useAppStore()
   const [mounted, setMounted] = useState(false)
+  const [isDenied, setIsDenied] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -964,8 +2299,16 @@ export function AgeVerificationModal() {
   if (!mounted) return null
   if (isAgeVerified) return null
 
-  const handleDecline = () => {
-    window.location.href = 'https://google.com'
+  if (isDenied) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background px-4 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10 mb-4">
+          <span className="text-3xl font-bold text-destructive">18+</span>
+        </div>
+        <h2 className="text-2xl font-bold mb-2">Доступ заборонено</h2>
+        <p className="text-muted-foreground mb-6">Вибачте, цей сайт доступний лише для повнолітніх.</p>
+      </div>
+    )
   }
 
   return (
@@ -988,7 +2331,7 @@ export function AgeVerificationModal() {
           <Button 
             variant="outline" 
             className="w-full sm:flex-1 border-destructive text-destructive hover:bg-destructive/10" 
-            onClick={handleDecline}
+            onClick={() => setIsDenied(true)}
           >
             {t('no_under_18')}
           </Button>
@@ -1228,221 +2571,6 @@ export function AuthForm() {
 }
 </file>
 
-<file path="src/features/cart/CartDrawer.tsx">
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Award, Wallet } from 'lucide-react'
-import { useAppStore, CartItem } from '../../store/useAppStore'
-import { useCreateOrder } from '../../hooks/useCreateOrder'
-import { Button } from '../../components/ui/button'
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-  DrawerFooter,
-} from '../../components/ui/drawer'
-
-export function CartDrawer() {
-  const { t, i18n } = useTranslation()
-  const currentLang = i18n.language as 'pl' | 'ua' | 'en'
-  
-  const { cart, tableId, user, removeFromCart, updateQuantity, clearCart, toggleItemPaymentMode, showAlert } = useAppStore()
-  const { mutate: createOrder, isPending } = useCreateOrder()
-  
-  const [isOpen, setIsOpen] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [tipPercent, setTipPercent] = useState<number>(0)
-
-  const getItemPrice = (item: CartItem) => {
-    if (item.payWithPoints) return 0
-    const extras = item.selectedIngredients?.reduce((sum, ing) => sum + (ing.price_extra || 0), 0) || 0
-    return (item.product.price + extras) * item.quantity
-  }
-
-  const rawBaseTotalCash = cart.reduce((sum, item) => sum + getItemPrice(item), 0)
-  const baseTotalCash = Math.round(rawBaseTotalCash * 100) / 100
-
-  const totalPointsUsed = cart.reduce((sum, item) => sum + (item.payWithPoints && item.product.bonus_price ? item.product.bonus_price * item.quantity : 0), 0)
-  
-  const pointsToEarn = cart.reduce((sum, item) => 
-    item.payWithPoints ? sum : sum + (item.product.bonus_reward * item.quantity), 0
-  )
-
-  const rawTipAmount = baseTotalCash * (tipPercent / 100)
-  const tipAmount = Math.round(rawTipAmount * 100) / 100
-
-  const finalTotalCash = Math.round((baseTotalCash + tipAmount) * 100) / 100
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
-
-  const handleCheckout = () => {
-    if (cart.length === 0) return
-    
-    if (!tableId) {
-      setIsOpen(false)
-      setTimeout(() => {
-        showAlert(t('attention'), t('scan_qr_prompt'))
-      }, 300)
-      return
-    }
-
-    createOrder(
-      { 
-        tableId, 
-        items: cart,
-        userId: user?.id,
-        tipAmount
-      },
-      {
-        onSuccess: () => {
-          setIsSuccess(true)
-          clearCart()
-          setTipPercent(0)
-          setTimeout(() => {
-            setIsOpen(false)
-            setIsSuccess(false)
-          }, 3000)
-        },
-        onError: (error) => {
-          setIsOpen(false)
-          setTimeout(() => {
-            showAlert(t('error'), `${t('error_processing_order')}${error.message}`)
-          }, 300)
-        }
-      }
-    )
-  }
-
-  if (totalItems === 0 && !isSuccess) return null
-
-  return (
-    <Drawer open={isOpen} onOpenChange={setIsOpen}>
-      <DrawerTrigger asChild>
-        <Button 
-          className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-2xl z-50 p-0" 
-          size="icon"
-        >
-          <div className="relative flex items-center justify-center w-full h-full">
-            <ShoppingCart className="h-6 w-6" />
-            <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-[11px] font-bold text-destructive-foreground border-2 border-primary-foreground shadow-sm">
-              {totalItems}
-            </span>
-          </div>
-        </Button>
-      </DrawerTrigger>
-      <DrawerContent>
-        <DrawerHeader>
-          <div className="flex flex-col gap-1">
-            <DrawerTitle>{isSuccess ? t('order_success_title') : t('your_order')}</DrawerTitle>
-            {user && !isSuccess && (
-              <div className="flex items-center gap-1.5 text-xs font-medium text-primary bg-primary/10 w-fit px-2 py-1 rounded-full mx-auto">
-                <Wallet className="h-3 w-3" />
-                {t('your_balance')}: {user.bonus_points}
-              </div>
-            )}
-          </div>
-        </DrawerHeader>
-
-        {isSuccess ? (
-          <div className="p-8 flex flex-col items-center animate-in fade-in zoom-in">
-            <CheckCircle2 className="h-20 w-20 text-primary mb-4" />
-            <p className="text-xl font-semibold text-center">{t('order_success_desc')}</p>
-          </div>
-        ) : (
-          <>
-            <div className="p-4 space-y-4 max-h-[45vh] overflow-y-auto">
-              {cart.map((item) => {
-                const canPayWithPoints = user && item.product.bonus_price && user.bonus_points >= (totalPointsUsed + item.product.bonus_price * item.quantity)
-                return (
-                  <div key={item.id} className="flex flex-col border-b border-border pb-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <h4 className="text-sm font-semibold">{item.product.name[currentLang] || item.product.name.pl}</h4>
-                        {item.selectedIngredients && item.selectedIngredients.length > 0 && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {item.selectedIngredients.map(ing => ing.name[currentLang] || ing.name.pl).join(', ')}
-                          </p>
-                        )}
-                      </div>
-                      <span className={`text-sm font-bold ${item.payWithPoints ? 'text-green-500' : 'text-primary'}`}>
-                        {item.payWithPoints 
-                          ? `${item.product.bonus_price! * item.quantity}` 
-                          : new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(getItemPrice(item))}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-3">
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}>
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <span className="w-4 text-center text-sm font-medium">{item.quantity}</span>
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                        <Button variant="destructive" size="icon" className="h-8 w-8 ml-2" onClick={() => removeFromCart(item.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      {item.product.bonus_price && user && (
-                        <Button 
-                          variant={item.payWithPoints ? "default" : "outline"} 
-                          size="sm" 
-                          className="h-8 text-xs gap-1"
-                          onClick={() => toggleItemPaymentMode(item.id)}
-                          disabled={!item.payWithPoints && !canPayWithPoints}
-                        >
-                          <Award className="h-3 w-3" />
-                          {item.payWithPoints ? t('by_points') : t('use_points')}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <DrawerFooter className="border-t">
-              <div className="flex flex-col gap-2 mb-4">
-                <p className="text-xs text-muted-foreground uppercase font-bold">{t('add_tip')}</p>
-                <div className="flex gap-2">
-                  {[0, 5, 10, 15].map((percent) => (
-                    <Button key={percent} variant={tipPercent === percent ? 'default' : 'outline'} className="flex-1 h-8 text-xs" onClick={() => setTipPercent(percent)} disabled={isPending || baseTotalCash === 0}>
-                      {percent > 0 ? `${percent}%` : '0%'}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5 mb-4 border-b border-dashed pb-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('points_will_earn')}</span>
-                  <span className="text-sm font-bold text-green-500">+{pointsToEarn}</span>
-                </div>
-                {totalPointsUsed > 0 && (
-                  <div className="flex justify-between items-center text-destructive">
-                    <span className="text-sm">{t('points_will_spend')}</span>
-                    <span className="text-sm font-bold">-{totalPointsUsed}</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center pt-2">
-                  <span className="font-semibold text-lg">{t('total')}</span>
-                  <span className="font-bold text-2xl text-primary">
-                    {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(finalTotalCash)}
-                  </span>
-                </div>
-              </div>
-              <Button className="w-full h-12 text-lg" onClick={handleCheckout} disabled={isPending || cart.length === 0}>
-                {isPending ? t('processing') : t('confirm_order')}
-              </Button>
-            </DrawerFooter>
-          </>
-        )}
-      </DrawerContent>
-    </Drawer>
-  )
-}
-</file>
-
 <file path="src/features/constructor/ConstructorDrawer.tsx">
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -1452,6 +2580,7 @@ import { useCategories } from '../../hooks/useMenu'
 import { Ingredient } from '../../types/menu'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
+import { getLocalized } from '../../lib/utils'
 import {
   Drawer,
   DrawerContent,
@@ -1459,6 +2588,12 @@ import {
   DrawerTitle,
   DrawerFooter,
 } from '../../components/ui/drawer'
+
+const CONSTRUCTOR_CONFIG: Record<string, string[]> = {
+  'hookahs': ['tobacco', 'bowl', 'base'],
+  'shisha': ['tobacco', 'bowl', 'base'],
+  'cocktails': ['alcohol', 'mixer']
+}
 
 export function ConstructorDrawer() {
   const { t, i18n } = useTranslation()
@@ -1473,13 +2608,7 @@ export function ConstructorDrawer() {
     if (!ingredients || !activeConstructorProduct || !categories) return {}
     
     const category = categories.find(c => c.id === activeConstructorProduct.category_id)
-    
-    const isHookah = category?.slug === 'hookahs' || category?.slug === 'shisha'
-    const isCocktail = category?.slug === 'cocktails'
-
-    let allowedTypes: string[] = []
-    if (isHookah) allowedTypes = ['tobacco', 'bowl', 'base']
-    if (isCocktail) allowedTypes = ['alcohol', 'mixer']
+    const allowedTypes = category?.slug ? CONSTRUCTOR_CONFIG[category.slug] || [] : []
 
     return ingredients
       .filter(ing => allowedTypes.includes(ing.type))
@@ -1521,7 +2650,7 @@ export function ConstructorDrawer() {
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader>
           <DrawerTitle className="text-xl">
-            {activeConstructorProduct.name?.[currentLang] || activeConstructorProduct.name?.pl || t('custom_product')}
+            {getLocalized(activeConstructorProduct.name, currentLang) || t('custom_product')}
           </DrawerTitle>
         </DrawerHeader>
         <div className="p-4 overflow-y-auto space-y-6 pb-24">
@@ -1539,7 +2668,7 @@ export function ConstructorDrawer() {
                         isSelected ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card'
                       }`}
                     >
-                      <span className="text-sm font-medium">{ing.name?.[currentLang] || ing.name?.pl || t('ingredient')}</span>
+                      <span className="text-sm font-medium">{getLocalized(ing.name, currentLang) || t('ingredient')}</span>
                       {ing.price_extra > 0 && <Badge variant="secondary" className="text-[10px]">+{ing.price_extra}</Badge>}
                     </button>
                   )
@@ -1616,356 +2745,6 @@ export function CategoryList({ selectedCategoryId, onSelectCategory }: CategoryL
           {category.name[currentLang] || category.name.pl}
         </Button>
       ))}
-    </div>
-  )
-}
-</file>
-
-<file path="src/features/menu/ProductCard.tsx">
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Product } from '../../types/menu'
-import { Card, CardContent, CardFooter, CardHeader } from '../../components/ui/card'
-import { Badge } from '../../components/ui/badge'
-import { Button } from '../../components/ui/button'
-import { Info, Plus, Settings2, Award, Heart, Tag, ImageIcon, MessageSquare, ChevronDown } from 'lucide-react'
-import { useAppStore } from '../../store/useAppStore'
-import { useFavorites, useToggleFavorite } from '../../hooks/useFavorites'
-import { useProductStats } from '../../hooks/useProductStats'
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '../../components/ui/drawer'
-import { ProductReviews } from './ProductReviews'
-
-interface ProductCardProps {
-  product: Product
-}
-
-export function ProductCard({ product }: ProductCardProps) {
-  const { t, i18n } = useTranslation()
-  const { user, addToCart, setActiveConstructorProduct, showAlert } = useAppStore()
-  const { data: favorites } = useFavorites()
-  const { mutate: toggleFavorite } = useToggleFavorite()
-  const { data: stats } = useProductStats(product.id)
-  
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
-  const [imageLoaded, setImageLoaded] = useState(false)
-  const [showAllergens, setShowAllergens] = useState(false)
-  
-  const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
-
-  const name = product.name?.[currentLang] || product.name?.pl || t('unknown_product')
-  const description = product.description?.[currentLang] || product.description?.pl || ''
-  const isFavorite = favorites?.includes(product.id)
-  const hasAllergens = product.allergens && product.allergens.length > 0
-  
-  const formattedPrice = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(product.price || 0)
-
-  const handleAction = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation()
-    if (product.is_constructor) {
-      setActiveConstructorProduct(product)
-      setIsDetailsOpen(false)
-    } else {
-      addToCart(product)
-      setIsDetailsOpen(false)
-    }
-  }
-
-  const handleFavoriteClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!user) {
-      showAlert(t('attention'), t('auth_required_fav'))
-      return
-    }
-    toggleFavorite({ productId: product.id, isFavorite: !!isFavorite })
-  }
-
-  return (
-    <>
-      <Card className="flex flex-col h-full overflow-hidden transition-all hover:border-primary/50 cursor-pointer relative" onClick={() => setIsDetailsOpen(true)}>
-        <button onClick={handleFavoriteClick} className="absolute top-2 right-2 z-20 p-2 bg-background/80 backdrop-blur-md rounded-full shadow-sm">
-          <Heart className={`h-4 w-4 transition-colors ${isFavorite ? 'fill-red-500 text-red-500' : 'text-foreground'}`} />
-        </button>
-
-        <div className="relative aspect-square w-full bg-muted shrink-0 overflow-hidden">
-          {product.image_url ? (
-            <>
-              {!imageLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-secondary animate-pulse">
-                  <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
-                </div>
-              )}
-              <img 
-                src={product.image_url} 
-                alt={name} 
-                onLoad={() => setImageLoaded(true)}
-                className={`h-full w-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} 
-              />
-            </>
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-secondary">
-              <span className="text-muted-foreground text-[10px] uppercase tracking-widest">Bar Poznan</span>
-            </div>
-          )}
-        </div>
-
-        <CardHeader className="p-4 pb-2">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold text-lg leading-tight line-clamp-2">{name}</h3>
-            <span className="font-bold text-primary whitespace-nowrap">{formattedPrice}</span>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-4 pt-0 flex-grow flex flex-col">
-          <p className="text-sm text-muted-foreground line-clamp-2 flex-grow">{description}</p>
-          
-          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/50 text-muted-foreground">
-            <div className="flex items-center gap-1 text-xs font-medium">
-              <Heart className="h-3.5 w-3.5" /> 
-              {stats?.likesCount || 0}
-            </div>
-            <div className="flex items-center gap-1 text-xs font-medium">
-              <MessageSquare className="h-3.5 w-3.5" /> 
-              {stats?.reviewsCount || 0}
-            </div>
-          </div>
-        </CardContent>
-
-        <CardFooter className="p-4 pt-0 mt-auto shrink-0">
-          <Button className="w-full gap-2" disabled={!product.is_available} onClick={handleAction}>
-            {product.is_constructor ? <Settings2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {product.is_available ? (product.is_constructor ? t('customize') : t('add_to_order')) : t('out_of_stock')}
-          </Button>
-        </CardFooter>
-      </Card>
-
-      <Drawer open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DrawerContent className="max-h-[90vh] flex flex-col p-0 overflow-hidden">
-          {/* Статичне фото зверху */}
-          {product.image_url && (
-            <div className="w-full h-56 bg-muted relative shrink-0">
-              <img src={product.image_url} alt={name} className="w-full h-full object-cover" />
-            </div>
-          )}
-          
-          {/* Контент, що скролиться */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-5">
-            <DrawerHeader className="p-0 text-left">
-              <div className="flex justify-between items-start mb-2 gap-4">
-                <DrawerTitle className="text-2xl">{name}</DrawerTitle>
-                <span className="text-2xl font-bold text-primary shrink-0">{formattedPrice}</span>
-              </div>
-              <p className="text-muted-foreground leading-relaxed">{description}</p>
-            </DrawerHeader>
-
-            <div className="flex items-center gap-4 text-muted-foreground bg-secondary/30 p-3 rounded-lg">
-              <div className="flex items-center gap-1.5 text-sm font-medium">
-                <Heart className="h-4 w-4 text-red-500" /> 
-                {stats?.likesCount || 0}
-              </div>
-              <div className="flex items-center gap-1.5 text-sm font-medium">
-                <MessageSquare className="h-4 w-4 text-primary" /> 
-                {stats?.reviewsCount || 0}
-              </div>
-            </div>
-
-            {product.tags && product.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {product.tags.map((tag) => (
-                  <Badge key={tag} variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1">
-                    <Tag className="h-3 w-3" />
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            )}
-
-            {/* Алергени як випадаюче меню */}
-            <div className="bg-secondary/50 rounded-lg overflow-hidden transition-all">
-              <button 
-                onClick={() => setShowAllergens(!showAllergens)}
-                className="w-full flex items-center justify-between p-3 focus:outline-none hover:bg-secondary/70 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <Info className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <span className="font-semibold text-sm">{t('allergens', 'Інформація про алергени')}</span>
-                </div>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${showAllergens ? 'rotate-180' : ''}`} />
-              </button>
-              {showAllergens && (
-                <div className="p-3 pt-0 border-t border-border/50 text-sm text-muted-foreground animate-in fade-in slide-in-from-top-2">
-                  {hasAllergens ? product.allergens.join(', ') : t('no_allergens', 'Алергени відсутні')}
-                </div>
-              )}
-            </div>
-
-            {product.bonus_price && (
-              <div className="flex items-center justify-between bg-primary/10 border border-primary/20 p-3 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-primary" />
-                  <span className="font-medium text-sm">{t('available_for_points')}</span>
-                </div>
-                <span className="font-bold text-primary">{product.bonus_price} б.</span>
-              </div>
-            )}
-            
-            <ProductReviews productId={product.id} />
-          </div>
-
-          {/* Статична кнопка знизу */}
-          <DrawerFooter className="border-t border-border p-4 shrink-0 bg-background">
-            <Button className="w-full h-14 text-lg gap-2" disabled={!product.is_available} onClick={handleAction}>
-              {product.is_constructor ? <Settings2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-              {product.is_available ? (product.is_constructor ? t('customize') : t('add_to_order')) : t('out_of_stock')}
-            </Button>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
-    </>
-  )
-}
-</file>
-
-<file path="src/features/menu/ProductReviews.tsx">
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Star, ChevronDown, MessageSquarePlus } from 'lucide-react'
-import { useAppStore } from '../../store/useAppStore'
-import { useProductReviews, useAddReview } from '../../hooks/useReviews'
-import { Button } from '../../components/ui/button'
-
-export function ProductReviews({ productId }: { productId: string }) {
-  const { t, i18n } = useTranslation()
-  const { user } = useAppStore()
-  const { data: reviews, isLoading } = useProductReviews(productId)
-  const { mutate: addReview, isPending } = useAddReview()
-
-  const [rating, setRating] = useState(5)
-  const [comment, setComment] = useState('')
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [isListOpen, setIsListOpen] = useState(false)
-
-  // Покращена і безпечна функція маскування телефону
-  const maskPhone = (profileData: any) => {
-    // Дістаємо телефон, навіть якщо Supabase повернув масив
-    const profile = Array.isArray(profileData) ? profileData[0] : profileData
-    const phone = profile?.phone
-
-    if (!phone || phone.trim() === '') return t('anonymous')
-
-    // Очищаємо від пробілів і дефісів для безпечної роботи
-    const cleaned = phone.replace(/[\s-]/g, '')
-    
-    // Якщо номер занадто короткий, просто повертаємо як є
-    if (cleaned.length < 7) return cleaned
-
-    // Залишаємо перші 4 символи (наприклад +481) і останні 2, решту замінюємо на зірочки
-    const visibleStart = cleaned.slice(0, 4)
-    const visibleEnd = cleaned.slice(-2)
-    
-    return `${visibleStart}***${visibleEnd}`
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    addReview({ productId, rating, comment }, {
-      onSuccess: () => {
-        setIsFormOpen(false)
-        setComment('')
-        setIsListOpen(true)
-      }
-    })
-  }
-
-  const reviewCount = reviews?.length || 0
-
-  return (
-    <div className="mt-2 space-y-4">
-      {/* Заголовок відгуків як кнопка-акордеон */}
-      <div className="flex justify-between items-center bg-secondary/20 p-2 rounded-lg border border-border/50">
-        <button 
-          onClick={() => setIsListOpen(!isListOpen)} 
-          className="flex-1 flex items-center gap-2 font-bold text-base px-2 py-1 focus:outline-none"
-        >
-          {t('reviews')} ({reviewCount})
-          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isListOpen ? 'rotate-180' : ''}`} />
-        </button>
-        
-        {user ? (
-          <Button variant="ghost" size="sm" onClick={() => setIsFormOpen(!isFormOpen)} className="h-8 px-3 text-xs bg-background shadow-sm">
-            <MessageSquarePlus className="h-3.5 w-3.5 mr-1.5" />
-            {t('write_review')}
-          </Button>
-        ) : (
-          <span className="text-[10px] text-muted-foreground px-2">{t('auth_required_review')}</span>
-        )}
-      </div>
-
-      {/* Форма додавання (Компактна) */}
-      {isFormOpen && user && (
-        <form onSubmit={handleSubmit} className="bg-secondary/30 p-3 rounded-xl space-y-3 border border-border animate-in fade-in slide-in-from-top-2">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-medium text-muted-foreground">Оцінка:</span>
-            <div className="flex gap-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button key={star} type="button" onClick={() => setRating(star)} className="focus:outline-none transition-transform hover:scale-110">
-                  <Star className={`h-6 w-6 ${star <= rating ? 'fill-orange-400 text-orange-400' : 'text-muted-foreground/30'}`} />
-                </button>
-              ))}
-            </div>
-          </div>
-          <textarea
-            className="w-full bg-background border border-input rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[60px] resize-none"
-            placeholder={t('review_placeholder')}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-          />
-          {isPending ? (
-            <div className="flex justify-center py-1">
-              <span className="text-primary text-xs font-medium">{t('sending')}</span>
-            </div>
-          ) : (
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setIsFormOpen(false)} className="h-8 text-xs">
-                {t('cancel')}
-              </Button>
-              <Button type="submit" size="sm" disabled={isPending || rating === 0} className="h-8 text-xs">
-                {t('send')}
-              </Button>
-            </div>
-          )}
-        </form>
-      )}
-
-      {/* Список коментарів */}
-      {isListOpen && (
-        <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-          {isLoading ? (
-            <p className="text-center text-sm text-muted-foreground py-2">{t('loading')}</p>
-          ) : !reviews || reviews.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground py-2">{t('no_reviews')}</p>
-          ) : (
-            reviews.map((review) => (
-              <div key={review.id} className="bg-card border border-border rounded-lg p-3 space-y-2 shadow-sm">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {/* Передаємо весь об'єкт profiles, функція сама розбереться */}
-                    {maskPhone(review.profiles)}
-                  </span>
-                  <div className="flex gap-0.5">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className={`h-3 w-3 ${i < review.rating ? 'fill-orange-400 text-orange-400' : 'text-muted-foreground/20'}`} />
-                    ))}
-                  </div>
-                </div>
-                {review.comment && <p className="text-sm leading-snug">{review.comment}</p>}
-                <p className="text-[10px] text-muted-foreground/50">
-                  {new Date(review.created_at).toLocaleDateString(i18n.language)}
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -2152,157 +2931,6 @@ export function ReferralDrawer({ isOpen, onClose }: ReferralDrawerProps) {
 }
 </file>
 
-<file path="src/features/service/CallStaffDrawer.tsx">
-import { useState, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Bell, Coffee, GlassWater, Wind, CheckCircle2, Clock } from 'lucide-react'
-import { useAppStore } from '../../store/useAppStore'
-import { useServiceCall } from '../../hooks/useServiceCall'
-import { Button } from '../../components/ui/button'
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerDescription,
-  DrawerTrigger,
-} from '../../components/ui/drawer'
-
-export function CallStaffDrawer() {
-  const { t } = useTranslation()
-  const { tableId, lastServiceCallTime, setLastServiceCallTime, showAlert, cart } = useAppStore()
-  const { mutate: callStaff, isPending } = useServiceCall()
-  const [isOpen, setIsOpen] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [timeLeft, setTimeLeft] = useState<number>(0)
-
-  // Перевіряємо, чи видимий зараз кошик (щоб знати, куди посунути кнопку)
-  const isCartVisible = cart.length > 0
-
-  useEffect(() => {
-    if (!isOpen || !lastServiceCallTime) return
-    
-    const checkCooldown = () => {
-      const now = Date.now()
-      const diff = Math.floor((now - lastServiceCallTime) / 1000)
-      const cooldown = 120
-      
-      if (diff < cooldown) {
-        setTimeLeft(cooldown - diff)
-      } else {
-        setTimeLeft(0)
-      }
-    }
-
-    checkCooldown()
-    const interval = setInterval(checkCooldown, 1000)
-    return () => clearInterval(interval)
-  }, [isOpen, lastServiceCallTime])
-
-  const handleCall = (type: 'waiter' | 'barman' | 'shisha') => {
-    if (timeLeft > 0 || !tableId) return
-
-    callStaff(
-      { tableId, type },
-      {
-        onSuccess: () => {
-          setLastServiceCallTime(Date.now())
-          setSuccessMessage(t('staff_called_success'))
-          setTimeout(() => {
-            setIsOpen(false)
-            setSuccessMessage(null)
-          }, 3000)
-        },
-        onError: (error) => {
-          showAlert(t('error'), `${t('error_calling_staff')}${error.message}`)
-        }
-      }
-    )
-  }
-
-  return (
-    <Drawer open={isOpen} onOpenChange={setIsOpen}>
-      <DrawerTrigger asChild>
-        <Button
-          variant="secondary"
-          className={`fixed right-4 h-14 w-14 rounded-full shadow-2xl z-50 transition-all duration-300 ${
-            isCartVisible ? 'bottom-40' : 'bottom-24'
-          }`}
-          size="icon"
-          onClick={(e) => {
-            if (!tableId) {
-              e.preventDefault()
-              showAlert(t('attention'), t('scan_qr_prompt'))
-            }
-          }}
-        >
-          <Bell className="h-6 w-6" />
-        </Button>
-      </DrawerTrigger>
-      <DrawerContent>
-        <div className="mx-auto w-full max-w-sm pb-6">
-          <DrawerHeader>
-            <DrawerTitle className="text-center">{t('call_staff')}</DrawerTitle>
-            <DrawerDescription className="text-center">
-              {timeLeft > 0 
-                ? t('cooldown_active') 
-                : t('choose_staff_type')}
-            </DrawerDescription>
-          </DrawerHeader>
-          
-          <div className="px-4 mt-2 flex flex-col gap-3">
-            {successMessage ? (
-              <div className="flex flex-col items-center justify-center py-8 text-primary animate-in fade-in zoom-in">
-                <CheckCircle2 className="h-16 w-16 mb-4" />
-                <p className="text-lg font-semibold text-center">{successMessage}</p>
-              </div>
-            ) : timeLeft > 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground animate-in fade-in">
-                <Clock className="h-16 w-16 mb-4" />
-                <p className="text-2xl font-bold">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
-                <p className="text-sm mt-2">{t('please_wait')}</p>
-              </div>
-            ) : (
-              <>
-                <Button 
-                  variant="outline" 
-                  className="h-16 text-lg justify-start gap-4 px-6 rounded-2xl"
-                  onClick={() => handleCall('waiter')}
-                  disabled={isPending}
-                >
-                  <Coffee className="h-6 w-6 text-primary" />
-                  {t('waiter')}
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  className="h-16 text-lg justify-start gap-4 px-6 rounded-2xl"
-                  onClick={() => handleCall('barman')}
-                  disabled={isPending}
-                >
-                  <GlassWater className="h-6 w-6 text-primary" />
-                  {t('bartender')}
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="h-16 text-lg justify-start gap-4 px-6 rounded-2xl"
-                  onClick={() => handleCall('shisha')}
-                  disabled={isPending}
-                >
-                  <Wind className="h-6 w-6 text-primary" />
-                  {t('shisha_master')}
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </DrawerContent>
-    </Drawer>
-  )
-}
-</file>
-
 <file path="src/hooks/useAuth.ts">
 import { useEffect } from 'react'
 import { supabase } from '../api/supabase'
@@ -2311,13 +2939,17 @@ import { UserProfile } from '../types/menu'
 
 export function useAuth() {
   const setUser = useAppStore((state) => state.setUser)
+  const setAuthLoading = useAppStore((state) => state.setAuthLoading) // <-- Додали
 
   useEffect(() => {
+    setAuthLoading(true) // Починаємо завантаження
+    
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         fetchProfile(session.user.id)
       } else {
         setUser(null)
+        setAuthLoading(false)
       }
     })
 
@@ -2326,11 +2958,12 @@ export function useAuth() {
         fetchProfile(session.user.id)
       } else {
         setUser(null)
+        setAuthLoading(false)
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [setUser])
+  }, [setUser, setAuthLoading])
 
   async function fetchProfile(userId: string) {
     try {
@@ -2350,6 +2983,8 @@ export function useAuth() {
       }
     } catch (err) {
       console.error('Unexpected error fetching profile:', err)
+    } finally {
+      setAuthLoading(false) // <-- Завжди зупиняємо завантаження в кінці
     }
   }
 }
@@ -2570,6 +3205,28 @@ export const useOrders = (userId?: string) => {
       return data
     },
     enabled: !!userId,
+  })
+}
+</file>
+
+<file path="src/hooks/useProductStats.ts">
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '../api/supabase'
+
+export const useProductStats = (productId: string) => {
+  return useQuery({
+    queryKey: ['productStats', productId],
+    queryFn: async () => {
+      const [reviewsRes, favsRes] = await Promise.all([
+        supabase.from('reviews').select('*', { count: 'exact', head: true }).eq('product_id', productId),
+        supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('product_id', productId)
+      ])
+      
+      return {
+        reviewsCount: reviewsRes.count || 0,
+        likesCount: favsRes.count || 0
+      }
+    }
   })
 }
 </file>
@@ -2935,139 +3592,6 @@ export default i18n
 }
 </file>
 
-<file path="src/i18n/locales/ua.json">
-{
-  "translation": {
-    "attention": "Увага",
-    "error": "Помилка",
-    "loading": "Завантаження...",
-    "cancel": "Скасувати",
-    "ok": "Зрозуміло",
-    "table": "Стіл",
-    "phone": "Телефон",
-    "email": "Email",
-    "password": "Пароль",
-
-    "menu": "Меню",
-    "favorites": "Улюблене",
-    "profile": "Профіль",
-    "settings": "Налаштування",
-
-    "age_verification_title": "Вам вже є 18 років?",
-    "age_verification_desc": "Цей сайт містить інформацію про алкогольну та тютюнову продукцію. Для доступу необхідно підтвердити свій вік.",
-    "no_under_18": "Ні, мені немає 18",
-    "yes_over_18": "Так, мені є 18",
-
-    "welcome_club": "Клубна картка",
-    "auth_desc": "Авторизуйтесь, щоб накопичувати бали та отримувати подарунки.",
-    "login": "Вхід",
-    "register": "Реєстрація",
-    "login_btn": "Увійти",
-    "register_btn": "Зареєструватися",
-    "phone_format": "Телефон (напр. +48...)",
-    "your_bonuses": "Ваші бонуси",
-    "points_available": "балів доступно для використання",
-    "not_set": "Не вказано",
-
-    "your_order": "Кошик",
-    "your_balance": "Мій баланс",
-    "by_points": "Балами",
-    "use_points": "Списати",
-    "add_tip": "Додати чайові",
-    "points_will_earn": "Отримаєте після оплати",
-    "points_will_spend": "Буде списано",
-    "total": "До сплати",
-    "processing": "Обробка...",
-    "confirm_order": "Замовити",
-    "order_success_title": "Замовлення прийнято!",
-    "order_success_desc": "Офіціант вже поспішає до вас!",
-    "error_processing_order": "Помилка створення замовлення: ",
-    "scan_qr_prompt": "Будь ласка, відскануйте QR-код на столі, щоб зробити замовлення.",
-
-    "menu_categories": "Меню",
-    "search_placeholder": "Пошук напоїв та кальянів...",
-    "no_search_results": "За вашим запитом нічого не знайдено",
-    "top_sales": "Топ продажів",
-    "all_categories": "Усі",
-    "error_loading_categories": "Помилка завантаження категорій",
-    "no_products_found": "У цій категорії поки немає товарів",
-    "customize": "Зібрати",
-    "add_to_order": "Додати",
-    "out_of_stock": "Немає в наявності",
-    "allergens": "Інформація про алергени",
-    "no_allergens": "Алергени відсутні",
-    "available_for_points": "Доступно за бали",
-    "add_for": "Додати за",
-
-    "type_tobacco": "Тютюн",
-    "type_bowl": "Чаша",
-    "type_base": "Колба",
-    "type_alcohol": "Алкоголь",
-    "type_mixer": "Міксер",
-
-    "auth_required": "Потрібна авторизація",
-    "auth_fav_desc": "Увійдіть, щоб зберігати свої улюблені напої та кальяни.",
-    "no_favorites": "Ви ще не додали жодного товару в улюблене",
-    "auth_required_fav": "Будь ласка, авторизуйтесь, щоб додати товар в улюблене.",
-
-    "reviews": "Відгуки",
-    "write_review": "Написати",
-    "auth_required_review": "Увійдіть в профіль, щоб залишити відгук.",
-    "review_placeholder": "Поділіться враженнями...",
-    "sending": "Відправка...",
-    "send": "Надіслати",
-    "no_reviews": "Поки немає відгуків. Будьте першим!",
-    "anonymous": "Анонім",
-
-    "order_history": "Історія замовлень",
-    "no_orders": "У вас ще немає замовлень.",
-    "order_details": "Деталі замовлення",
-    "unknown_product": "Невідомий товар",
-    "status_pending": "Очікує",
-    "status_preparing": "Готується",
-    "status_completed": "Виконано",
-    "status_cancelled": "Скасовано",
-
-    "referral_program": "Запросити друга",
-    "referral_rules": "Поділися цим посиланням. Коли твій друг зробить своє перше замовлення, ти отримаєш 50 бонусів!",
-    "copy_link": "Копіювати",
-    "copied": "Скопійовано",
-    "share": "Поділитися",
-    "share_title": "Приєднуйся до Bar Poznan!",
-    "share_desc": "Зареєструйся за моїм посиланням і отримай бонуси на перше замовлення!",
-
-    "call_staff": "Покликати персонал",
-    "choose_staff_type": "Кого саме ви хочете покликати?",
-    "waiter": "Офіціанта",
-    "bartender": "Бармена",
-    "shisha_master": "Кальянного майстра",
-    "cooldown_active": "Зачекайте перед наступним викликом",
-    "please_wait": "Будь ласка, зачекайте",
-    "staff_called_success": "Персонал вже прямує до вас!",
-    "error_calling_staff": "Помилка виклику персоналу: ",
-
-    "language": "Мова",
-    "theme": "Тема",
-    "light_mode": "Світла",
-    "dark_mode": "Темна",
-    "about_us": "Про нас",
-    "legal_info": "Юридична інформація",
-    "address_title": "Адреса",
-    "hours_title": "Години роботи",
-    "terms_of_service": "Правила закладу",
-    "terms_short": "Правила",
-    "privacy_policy": "Конфіденційність",
-    "privacy_short": "Приватність",
-
-    "err_invalid_email": "Некоректний формат email",
-    "err_invalid_phone": "Введіть коректний номер телефону",
-    "err_password_short": "Пароль має бути не менше 6 символів",
-    "err_password_long": "Пароль занадто довгий",
-    "logout": "Вийти"
-  }
-}
-</file>
-
 <file path="src/index.css">
 @tailwind base;
 @tailwind components;
@@ -3133,10 +3657,12 @@ export default i18n
 <file path="src/layouts/BottomNav.tsx">
 import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router-dom'
-import { UtensilsCrossed, Heart, User, Settings } from 'lucide-react'
+import { UtensilsCrossed, Heart, User, Settings, ShieldAlert, ClipboardList } from 'lucide-react'
+import { useAppStore } from '../store/useAppStore'
 
 export function BottomNav() {
   const { t } = useTranslation()
+  const { user } = useAppStore()
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/90 px-4 pb-safe pt-2 backdrop-blur-md">
@@ -3145,14 +3671,31 @@ export function BottomNav() {
           <UtensilsCrossed className="h-6 w-6" />
           <span className="text-[10px] font-medium uppercase tracking-wider">{t('menu')}</span>
         </NavLink>
+        
         <NavLink to="/favorites" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
           <Heart className="h-6 w-6" />
           <span className="text-[10px] font-medium uppercase tracking-wider">{t('favorites')}</span>
         </NavLink>
+
+        {(user?.role === 'admin' || user?.role === 'super_admin') && (
+          <NavLink to="/admin" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+            <ShieldAlert className="h-6 w-6" />
+            <span className="text-[10px] font-medium uppercase tracking-wider">Admin</span>
+          </NavLink>
+        )}
+        
+        {(user?.role === 'staff' || user?.role === 'admin' || user?.role === 'super_admin') && (
+          <NavLink to="/staff" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+            <ClipboardList className="h-6 w-6" />
+            <span className="text-[10px] font-medium uppercase tracking-wider">Staff</span>
+          </NavLink>
+        )}
+
         <NavLink to="/profile" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
           <User className="h-6 w-6" />
           <span className="text-[10px] font-medium uppercase tracking-wider">{t('profile')}</span>
         </NavLink>
+        
         <NavLink to="/settings" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
           <Settings className="h-6 w-6" />
           <span className="text-[10px] font-medium uppercase tracking-wider">{t('settings')}</span>
@@ -3169,6 +3712,14 @@ import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+export function getLocalized(
+  field: { pl?: string; ua?: string; en?: string } | null | undefined,
+  lang: string
+): string {
+  if (!field) return ''
+  return field[lang as keyof typeof field] || field.pl || ''
 }
 </file>
 
@@ -3791,7 +4342,7 @@ export function SettingsPage() {
 
 <file path="src/routes/index.tsx">
 import { useEffect } from 'react'
-import { Routes, Route, useSearchParams } from 'react-router-dom'
+import { Routes, Route, useSearchParams, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../store/useAppStore'
 import { useAuth } from '../hooks/useAuth'
@@ -3802,16 +4353,34 @@ import { FavoritesPage } from '../pages/FavoritesPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { AboutPage } from '../pages/AboutPage'
+import { LegalPage } from '../pages/LegalPage'
+
+import { AdminDashboard } from '../pages/AdminDashboard'
+import { AdminRoute } from './AdminRoute'
+
+import { StaffDashboard } from '../pages/StaffDashboard'
+import { StaffRoute } from './StaffRoute'
 
 import { BottomNav } from '../layouts/BottomNav'
 import { CartDrawer } from '../features/cart/CartDrawer'
 import { CallStaffDrawer } from '../features/service/CallStaffDrawer'
 import { ConstructorDrawer } from '../features/constructor/ConstructorDrawer'
 import { AgeVerificationModal } from '../features/auth/AgeVerificationModal'
-import { LegalPage } from '../pages/LegalPage'
 import { GlobalAlert } from '../components/ui/GlobalAlert'
 
-function AppLayout({ children }: { children: React.ReactNode }) {
+function ClientLayout() {
+  return (
+    <div className="min-h-screen bg-background pb-20 transition-colors duration-300">
+      <Outlet />
+      <ConstructorDrawer />
+      <CallStaffDrawer />
+      <CartDrawer />
+      <AgeVerificationModal />
+    </div>
+  )
+}
+
+export function AppRoutes() {
   const [searchParams] = useSearchParams()
   const { setTableId, setReferralCodeToApply, theme, language } = useAppStore()
   const { i18n } = useTranslation()
@@ -3838,31 +4407,31 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   }, [searchParams, setTableId, setReferralCodeToApply])
 
   return (
-    <div className="min-h-screen bg-background pb-20 transition-colors duration-300">
-      {children}
-      <ConstructorDrawer />
-      <CallStaffDrawer />
-      <CartDrawer />
-      <AgeVerificationModal />
+    <>
       <GlobalAlert />
-      <BottomNav />
-    </div>
-  )
-}
-
-export function AppRoutes() {
-  return (
-    <AppLayout>
+      
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/category/:slug" element={<CategoryPage />} />
-        <Route path="/favorites" element={<FavoritesPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/legal" element={<LegalPage />} />
-        <Route path="/about" element={<AboutPage />} />
+        <Route element={<ClientLayout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/category/:slug" element={<CategoryPage />} />
+          <Route path="/favorites" element={<FavoritesPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/legal" element={<LegalPage />} />
+          <Route path="/about" element={<AboutPage />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/*" element={<AdminDashboard />} /> 
+        </Route>
+
+        <Route element={<StaffRoute />}>
+          <Route path="/staff" element={<StaffDashboard />} />
+        </Route>
       </Routes>
-    </AppLayout>
+
+      <BottomNav />
+    </>
   )
 }
 </file>
@@ -3884,12 +4453,14 @@ interface AlertConfig {
   isOpen: boolean
   title: string
   message: string
+  onConfirm?: () => void
 }
 
 interface AppState {
   tableId: string | null
   isAgeVerified: boolean
   user: UserProfile | null
+  isAuthLoading: boolean
   cart: CartItem[]
   activeConstructorProduct: Product | null
   referralCodeToApply: string | null
@@ -3898,6 +4469,7 @@ interface AppState {
   lastServiceCallTime: number | null
   alertConfig: AlertConfig
   
+  setAuthLoading: (loading: boolean) => void
   setLastServiceCallTime: (time: number) => void
   setLanguage: (lang: 'pl' | 'ua' | 'en') => void
   setTheme: (theme: 'dark' | 'light') => void
@@ -3912,7 +4484,7 @@ interface AppState {
   toggleItemPaymentMode: (id: string) => void
   clearCart: () => void
   
-  showAlert: (title: string, message: string) => void
+  showAlert: (title: string, message: string, onConfirm?: () => void) => void
   hideAlert: () => void
 }
 
@@ -3930,6 +4502,7 @@ export const useAppStore = create<AppState>()(
       tableId: null,
       isAgeVerified: false,
       user: null,
+      isAuthLoading: true,
       cart: [],
       activeConstructorProduct: null,
       referralCodeToApply: null,
@@ -3938,6 +4511,7 @@ export const useAppStore = create<AppState>()(
       lastServiceCallTime: null,
       alertConfig: { isOpen: false, title: '', message: '' },
       
+      setAuthLoading: (loading) => set({ isAuthLoading: loading }),
       setLastServiceCallTime: (time) => set({ lastServiceCallTime: time }),
       setLanguage: (language) => set({ language }),
       setTheme: (theme) => set({ theme }),
@@ -3993,8 +4567,8 @@ export const useAppStore = create<AppState>()(
         
       clearCart: () => set({ cart: [] }),
       
-      showAlert: (title, message) => set({ alertConfig: { isOpen: true, title, message } }),
-      hideAlert: () => set((state) => ({ alertConfig: { ...state.alertConfig, isOpen: false } })),
+      showAlert: (title, message, onConfirm) => set({ alertConfig: { isOpen: true, title, message, onConfirm } }),
+      hideAlert: () => set((state) => ({ alertConfig: { ...state.alertConfig, isOpen: false, onConfirm: undefined } })),
     }),
     {
       name: 'bar-poznan-storage',
@@ -4025,6 +4599,7 @@ export interface Category {
   slug: string
   image_url: string
   sort_order: number
+  is_active: boolean
 }
 
 export interface Product {
@@ -4056,6 +4631,46 @@ export interface UserProfile {
   phone: string | null
   bonus_points: number
   referral_code: string
+  role: 'user' | 'admin' | 'staff' | 'super_admin' // Додали super_admin
+  email?: string
+}
+
+export type OrderStatus = 'pending' | 'new' | 'preparing' | 'served' | 'completed' | 'cancelled'
+
+export type PaymentMethod = 'card' | 'cash' | 'points' | 'mixed'
+
+export interface OrderItemIngredient {
+  id: string
+  name: LocalizedString
+  type: string
+  price_extra: number
+}
+
+export interface OrderItem {
+  product_id: string
+  name: LocalizedString
+  quantity: number
+  price: number
+  pay_with_points: boolean
+  is_custom: boolean
+  selected_ingredients?: OrderItemIngredient[]
+}
+
+export interface Order {
+  id: string
+  user_id: string | null
+  table_id: string
+  total_price: number
+  tip_amount: number
+  points_used: number
+  points_earned: number
+  status: OrderStatus
+  payment_method: PaymentMethod | null
+  is_paid: boolean
+  assigned_staff_id: string | null
+  items: OrderItem[]
+  created_at: string
+  updated_at: string
 }
 </file>
 
@@ -4282,6 +4897,1012 @@ pnpm-debug.log*
 # Тести та кеш
 .cache
 .eslintcache
+</file>
+
+<file path="src/components/ui/GlobalAlert.tsx">
+import { useTranslation } from 'react-i18next'
+import { AlertCircle, X, Trash2 } from 'lucide-react'
+import { useAppStore } from '../../store/useAppStore'
+import { Button } from './button'
+
+export function GlobalAlert() {
+  const { t } = useTranslation()
+  const { alertConfig, hideAlert } = useAppStore()
+
+  if (!alertConfig.isOpen) return null
+
+  const isConfirmation = !!alertConfig.onConfirm
+
+  const handleConfirm = () => {
+    const action = alertConfig.onConfirm
+    hideAlert()
+    
+    if (action) {
+      queueMicrotask(() => action())
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200 px-4 pointer-events-auto">
+      <div className="relative w-full max-w-sm bg-card border border-border shadow-2xl rounded-2xl p-6 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+        <button 
+          onClick={hideAlert}
+          className="absolute top-4 right-4 p-1 rounded-full hover:bg-secondary transition-colors"
+        >
+          <X className="h-5 w-5 text-muted-foreground" />
+        </button>
+        
+        <div className={`h-12 w-12 rounded-full flex items-center justify-center mb-4 ${isConfirmation ? 'bg-destructive/10' : 'bg-primary/10'}`}>
+          {isConfirmation ? (
+            <Trash2 className="h-6 w-6 text-destructive" />
+          ) : (
+            <AlertCircle className="h-6 w-6 text-primary" />
+          )}
+        </div>
+        
+        <h3 className="text-xl font-bold mb-2 text-foreground">
+          {alertConfig.title}
+        </h3>
+        
+        <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+          {alertConfig.message}
+        </p>
+        
+        {isConfirmation ? (
+          <div className="flex w-full gap-3">
+            <Button variant="outline" className="flex-1 h-12 rounded-xl" onClick={hideAlert}>
+              {t('cancel')}
+            </Button>
+            <Button variant="destructive" className="flex-1 h-12 rounded-xl" onClick={handleConfirm}>
+              {t('confirm')}
+            </Button>
+          </div>
+        ) : (
+          <Button className="w-full h-12 text-lg rounded-xl" onClick={hideAlert}>
+            {t('ok')}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+</file>
+
+<file path="src/features/cart/CartDrawer.tsx">
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Award, Wallet } from 'lucide-react'
+import { useAppStore, CartItem } from '../../store/useAppStore'
+import { useCreateOrder } from '../../hooks/useCreateOrder'
+import { Button } from '../../components/ui/button'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+  DrawerFooter,
+} from '../../components/ui/drawer'
+
+export function CartDrawer() {
+  const { t, i18n } = useTranslation()
+  const currentLang = i18n.language as 'pl' | 'ua' | 'en'
+  
+  const { cart, tableId, user, removeFromCart, updateQuantity, clearCart, toggleItemPaymentMode, showAlert } = useAppStore()
+  const { mutate: createOrder, isPending } = useCreateOrder()
+  
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [tipPercent, setTipPercent] = useState<number>(0)
+
+  const getItemPrice = (item: CartItem) => {
+    if (item.payWithPoints) return 0
+    const extras = item.selectedIngredients?.reduce((sum, ing) => sum + (ing.price_extra || 0), 0) || 0
+    return (item.product.price + extras) * item.quantity
+  }
+
+  const rawBaseTotalCash = cart.reduce((sum, item) => sum + getItemPrice(item), 0)
+  const baseTotalCash = Math.round(rawBaseTotalCash * 100) / 100
+
+  const totalPointsUsed = cart.reduce((sum, item) => sum + (item.payWithPoints && item.product.bonus_price ? item.product.bonus_price * item.quantity : 0), 0)
+  
+  const pointsToEarn = cart.reduce((sum, item) => 
+    item.payWithPoints ? sum : sum + (item.product.bonus_reward * item.quantity), 0
+  )
+
+  const rawTipAmount = baseTotalCash * (tipPercent / 100)
+  const tipAmount = Math.round(rawTipAmount * 100) / 100
+
+  const finalTotalCash = Math.round((baseTotalCash + tipAmount) * 100) / 100
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
+
+  const handleCheckout = () => {
+    if (cart.length === 0) return
+    
+    if (!tableId) {
+      setIsOpen(false)
+      setTimeout(() => {
+        showAlert(t('attention'), t('scan_qr_prompt'))
+      }, 300)
+      return
+    }
+
+    createOrder(
+      { 
+        tableId, 
+        items: cart,
+        userId: user?.id,
+        tipAmount
+      },
+      {
+        onSuccess: () => {
+          setIsSuccess(true)
+          clearCart()
+          setTipPercent(0)
+          setTimeout(() => {
+            setIsOpen(false)
+            setIsSuccess(false)
+          }, 3000)
+        },
+        onError: (error) => {
+          setIsOpen(false)
+          setTimeout(() => {
+            showAlert(t('error'), `${t('error_processing_order')}${error.message}`)
+          }, 300)
+        }
+      }
+    )
+  }
+
+  if (totalItems === 0 && !isSuccess) return null
+
+  return (
+    <Drawer open={isOpen} onOpenChange={setIsOpen}>
+      <DrawerTrigger asChild>
+        <Button 
+          className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-2xl z-50 p-0" 
+          size="icon"
+        >
+          <div className="relative flex items-center justify-center w-full h-full">
+            <ShoppingCart className="h-6 w-6" />
+            <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-[11px] font-bold text-destructive-foreground border-2 border-primary-foreground shadow-sm">
+              {totalItems}
+            </span>
+          </div>
+        </Button>
+      </DrawerTrigger>
+      <DrawerContent>
+        <DrawerHeader>
+          <div className="flex flex-col gap-1">
+            <DrawerTitle>{isSuccess ? t('order_success_title') : t('your_order')}</DrawerTitle>
+            {user && !isSuccess && (
+              <div className="flex items-center gap-1.5 text-xs font-medium text-primary bg-primary/10 w-fit px-2 py-1 rounded-full mx-auto">
+                <Wallet className="h-3 w-3" />
+                {t('your_balance')}: {user.bonus_points}
+              </div>
+            )}
+          </div>
+        </DrawerHeader>
+
+        {isSuccess ? (
+          <div className="p-8 flex flex-col items-center animate-in fade-in zoom-in">
+            <CheckCircle2 className="h-20 w-20 text-primary mb-4" />
+            <p className="text-xl font-semibold text-center">{t('order_success_desc')}</p>
+          </div>
+        ) : (
+          <>
+            <div className="p-4 space-y-4 max-h-[45vh] overflow-y-auto">
+              {cart.map((item) => {
+                const canPayWithPoints = user && item.product.bonus_price && user.bonus_points >= (totalPointsUsed + item.product.bonus_price * item.quantity)
+                return (
+                  <div key={item.id} className="flex flex-col border-b border-border pb-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold">{item.product.name[currentLang] || item.product.name.pl}</h4>
+                        {item.selectedIngredients && item.selectedIngredients.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {item.selectedIngredients.map(ing => ing.name[currentLang] || ing.name.pl).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <span className={`text-sm font-bold ${item.payWithPoints ? 'text-green-500' : 'text-primary'}`}>
+                        {item.payWithPoints 
+                          ? `${item.product.bonus_price! * item.quantity}` 
+                          : new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(getItemPrice(item))}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}>
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <span className="w-4 text-center text-sm font-medium">{item.quantity}</span>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" className="h-8 w-8 ml-2" onClick={() => removeFromCart(item.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {item.product.bonus_price && user && (
+                        <Button 
+                          variant={item.payWithPoints ? "default" : "outline"} 
+                          size="sm" 
+                          className="h-8 text-xs gap-1"
+                          onClick={() => toggleItemPaymentMode(item.id)}
+                          disabled={!item.payWithPoints && !canPayWithPoints}
+                        >
+                          <Award className="h-3 w-3" />
+                          {item.payWithPoints ? t('by_points') : t('use_points')}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <DrawerFooter className="border-t">
+              <div className="flex flex-col gap-2 mb-4">
+                <p className="text-xs text-muted-foreground uppercase font-bold">{t('add_tip')}</p>
+                <div className="flex gap-2">
+                  {[0, 5, 10, 15].map((percent) => (
+                    <Button key={percent} variant={tipPercent === percent ? 'default' : 'outline'} className="flex-1 h-8 text-xs" onClick={() => setTipPercent(percent)} disabled={isPending || baseTotalCash === 0}>
+                      {percent > 0 ? `${percent}%` : '0%'}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5 mb-4 border-b border-dashed pb-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">{t('points_will_earn')}</span>
+                  <span className="text-sm font-bold text-green-500">+{pointsToEarn}</span>
+                </div>
+                {totalPointsUsed > 0 && (
+                  <div className="flex justify-between items-center text-destructive">
+                    <span className="text-sm">{t('points_will_spend')}</span>
+                    <span className="text-sm font-bold">-{totalPointsUsed}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2">
+                  <span className="font-semibold text-lg">{t('total')}</span>
+                  <span className="font-bold text-2xl text-primary">
+                    {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(finalTotalCash)}
+                  </span>
+                </div>
+              </div>
+              <Button className="w-full h-12 text-lg" onClick={handleCheckout} disabled={isPending || cart.length === 0}>
+                {isPending ? t('processing') : t('confirm_order')}
+              </Button>
+            </DrawerFooter>
+          </>
+        )}
+      </DrawerContent>
+    </Drawer>
+  )
+}
+</file>
+
+<file path="src/features/menu/ProductReviews.tsx">
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Star, ChevronDown, MessageSquarePlus } from 'lucide-react'
+import { useAppStore } from '../../store/useAppStore'
+import { useProductReviews, useAddReview } from '../../hooks/useReviews'
+import { Button } from '../../components/ui/button'
+
+export function ProductReviews({ productId }: { productId: string }) {
+  const { t, i18n } = useTranslation()
+  const { user } = useAppStore()
+  const { data: reviews, isLoading } = useProductReviews(productId)
+  const { mutate: addReview, isPending } = useAddReview()
+
+  const [rating, setRating] = useState(5)
+  const [comment, setComment] = useState('')
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isListOpen, setIsListOpen] = useState(false)
+
+  // Покращена і безпечна функція маскування телефону
+  const maskPhone = (profileData: any) => {
+    // Дістаємо телефон, навіть якщо Supabase повернув масив
+    const profile = Array.isArray(profileData) ? profileData[0] : profileData
+    const phone = profile?.phone
+
+    if (!phone || phone.trim() === '') return t('anonymous')
+
+    // Очищаємо від пробілів і дефісів для безпечної роботи
+    const cleaned = phone.replace(/[\s-]/g, '')
+    
+    // Якщо номер занадто короткий, просто повертаємо як є
+    if (cleaned.length < 7) return cleaned
+
+    // Залишаємо перші 4 символи (наприклад +481) і останні 2, решту замінюємо на зірочки
+    const visibleStart = cleaned.slice(0, 4)
+    const visibleEnd = cleaned.slice(-2)
+    
+    return `${visibleStart}***${visibleEnd}`
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    addReview({ productId, rating, comment }, {
+      onSuccess: () => {
+        setIsFormOpen(false)
+        setComment('')
+        setIsListOpen(true)
+      }
+    })
+  }
+
+  const reviewCount = reviews?.length || 0
+
+  return (
+    <div className="mt-2 space-y-4">
+      {/* Заголовок відгуків як кнопка-акордеон */}
+      <div className="flex justify-between items-center bg-secondary/20 p-2 rounded-lg border border-border/50">
+        <button 
+          onClick={() => setIsListOpen(!isListOpen)} 
+          className="flex-1 flex items-center gap-2 font-bold text-base px-2 py-1 focus:outline-none"
+        >
+          {t('reviews')} ({reviewCount})
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isListOpen ? 'rotate-180' : ''}`} />
+        </button>
+        
+        {user ? (
+          <Button variant="ghost" size="sm" onClick={() => setIsFormOpen(!isFormOpen)} className="h-8 px-3 text-xs bg-background shadow-sm">
+            <MessageSquarePlus className="h-3.5 w-3.5 mr-1.5" />
+            {t('write_review')}
+          </Button>
+        ) : (
+          <span className="text-[10px] text-muted-foreground px-2">{t('auth_required_review')}</span>
+        )}
+      </div>
+
+      {/* Форма додавання (Компактна) */}
+      {isFormOpen && user && (
+        <form onSubmit={handleSubmit} className="bg-secondary/30 p-3 rounded-xl space-y-3 border border-border animate-in fade-in slide-in-from-top-2">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-medium text-muted-foreground">Оцінка:</span>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button key={star} type="button" onClick={() => setRating(star)} className="focus:outline-none transition-transform hover:scale-110">
+                  <Star className={`h-6 w-6 ${star <= rating ? 'fill-orange-400 text-orange-400' : 'text-muted-foreground/30'}`} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <textarea
+            className="w-full bg-background border border-input rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[60px] resize-none"
+            placeholder={t('review_placeholder')}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+          {isPending ? (
+            <div className="flex justify-center py-1">
+              <span className="text-primary text-xs font-medium">{t('sending')}</span>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setIsFormOpen(false)} className="h-8 text-xs">
+                {t('cancel')}
+              </Button>
+              <Button type="submit" size="sm" disabled={isPending || rating === 0} className="h-8 text-xs">
+                {t('send')}
+              </Button>
+            </div>
+          )}
+        </form>
+      )}
+
+      {/* Список коментарів */}
+      {isListOpen && (
+        <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+          {isLoading ? (
+            <p className="text-center text-sm text-muted-foreground py-2">{t('loading')}</p>
+          ) : !reviews || reviews.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-2">{t('no_reviews')}</p>
+          ) : (
+            reviews.map((review) => (
+              <div key={review.id} className="bg-card border border-border rounded-lg p-3 space-y-2 shadow-sm">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {/* Передаємо весь об'єкт profiles, функція сама розбереться */}
+                    {maskPhone(review.profiles)}
+                  </span>
+                  <div className="flex gap-0.5">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className={`h-3 w-3 ${i < review.rating ? 'fill-orange-400 text-orange-400' : 'text-muted-foreground/20'}`} />
+                    ))}
+                  </div>
+                </div>
+                {review.comment && <p className="text-sm leading-snug">{review.comment}</p>}
+                <p className="text-[10px] text-muted-foreground/50">
+                  {new Date(review.created_at).toLocaleDateString(i18n.language)}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+</file>
+
+<file path="src/features/service/CallStaffDrawer.tsx">
+import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Bell, Coffee, GlassWater, Wind, CheckCircle2, Clock } from 'lucide-react'
+import { useAppStore } from '../../store/useAppStore'
+import { useServiceCall } from '../../hooks/useServiceCall'
+import { Button } from '../../components/ui/button'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerTrigger,
+} from '../../components/ui/drawer'
+
+export function CallStaffDrawer() {
+  const { t } = useTranslation()
+  const { tableId, lastServiceCallTime, setLastServiceCallTime, showAlert, cart } = useAppStore()
+  const { mutate: callStaff, isPending } = useServiceCall()
+  const [isOpen, setIsOpen] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [timeLeft, setTimeLeft] = useState<number>(0)
+
+  // Перевіряємо, чи видимий зараз кошик (щоб знати, куди посунути кнопку)
+  const isCartVisible = cart.length > 0
+
+  useEffect(() => {
+    if (!isOpen || !lastServiceCallTime) return
+    
+    const checkCooldown = () => {
+      const now = Date.now()
+      const diff = Math.floor((now - lastServiceCallTime) / 1000)
+      const cooldown = 120
+      
+      if (diff < cooldown) {
+        setTimeLeft(cooldown - diff)
+      } else {
+        setTimeLeft(0)
+      }
+    }
+
+    checkCooldown()
+    const interval = setInterval(checkCooldown, 1000)
+    return () => clearInterval(interval)
+  }, [isOpen, lastServiceCallTime])
+
+  const handleCall = (type: 'waiter' | 'barman' | 'shisha') => {
+    if (timeLeft > 0 || !tableId) return
+
+    callStaff(
+      { tableId, type },
+      {
+        onSuccess: () => {
+          setLastServiceCallTime(Date.now())
+          setSuccessMessage(t('staff_called_success'))
+          setTimeout(() => {
+            setIsOpen(false)
+            setSuccessMessage(null)
+          }, 3000)
+        },
+        onError: (error) => {
+          showAlert(t('error'), `${t('error_calling_staff')}${error.message}`)
+        }
+      }
+    )
+  }
+
+  return (
+    <Drawer open={isOpen} onOpenChange={setIsOpen}>
+      <DrawerTrigger asChild>
+        <Button
+          variant="secondary"
+          className={`fixed right-4 h-14 w-14 rounded-full shadow-2xl z-50 transition-all duration-300 ${
+            isCartVisible ? 'bottom-40' : 'bottom-24'
+          }`}
+          size="icon"
+          onClick={(e) => {
+            if (!tableId) {
+              e.preventDefault()
+              showAlert(t('attention'), t('scan_qr_prompt'))
+            }
+          }}
+        >
+          <Bell className="h-6 w-6" />
+        </Button>
+      </DrawerTrigger>
+      <DrawerContent>
+        <div className="mx-auto w-full max-w-sm pb-6">
+          <DrawerHeader>
+            <DrawerTitle className="text-center">{t('call_staff')}</DrawerTitle>
+            <DrawerDescription className="text-center">
+              {timeLeft > 0 
+                ? t('cooldown_active') 
+                : t('choose_staff_type')}
+            </DrawerDescription>
+          </DrawerHeader>
+          
+          <div className="px-4 mt-2 flex flex-col gap-3">
+            {successMessage ? (
+              <div className="flex flex-col items-center justify-center py-8 text-primary animate-in fade-in zoom-in">
+                <CheckCircle2 className="h-16 w-16 mb-4" />
+                <p className="text-lg font-semibold text-center">{successMessage}</p>
+              </div>
+            ) : timeLeft > 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground animate-in fade-in">
+                <Clock className="h-16 w-16 mb-4" />
+                <p className="text-2xl font-bold">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
+                <p className="text-sm mt-2">{t('please_wait')}</p>
+              </div>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  className="h-16 text-lg justify-start gap-4 px-6 rounded-2xl"
+                  onClick={() => handleCall('waiter')}
+                  disabled={isPending}
+                >
+                  <Coffee className="h-6 w-6 text-primary" />
+                  {t('waiter')}
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  className="h-16 text-lg justify-start gap-4 px-6 rounded-2xl"
+                  onClick={() => handleCall('barman')}
+                  disabled={isPending}
+                >
+                  <GlassWater className="h-6 w-6 text-primary" />
+                  {t('bartender')}
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  className="h-16 text-lg justify-start gap-4 px-6 rounded-2xl"
+                  onClick={() => handleCall('shisha')}
+                  disabled={isPending}
+                >
+                  <Wind className="h-6 w-6 text-primary" />
+                  {t('shisha_master')}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+</file>
+
+<file path="src/i18n/locales/ua.json">
+{
+  "translation": {
+    "attention": "Увага",
+    "error": "Помилка",
+    "loading": "Завантаження...",
+    "cancel": "Скасувати",
+    "ok": "Зрозуміло",
+    "table": "Стіл",
+    "phone": "Телефон",
+    "email": "Email",
+    "password": "Пароль",
+
+    "menu": "Меню",
+    "favorites": "Улюблене",
+    "profile": "Профіль",
+    "settings": "Налаштування",
+
+    "age_verification_title": "Вам вже є 18 років?",
+    "age_verification_desc": "Цей сайт містить інформацію про алкогольну та тютюнову продукцію. Для доступу необхідно підтвердити свій вік.",
+    "no_under_18": "Ні, мені немає 18",
+    "yes_over_18": "Так, мені є 18",
+
+    "welcome_club": "Клубна картка",
+    "auth_desc": "Авторизуйтесь, щоб накопичувати бали та отримувати подарунки.",
+    "login": "Вхід",
+    "register": "Реєстрація",
+    "login_btn": "Увійти",
+    "register_btn": "Зареєструватися",
+    "phone_format": "Телефон (напр. +48...)",
+    "your_bonuses": "Ваші бонуси",
+    "points_available": "балів доступно для використання",
+    "not_set": "Не вказано",
+
+    "your_order": "Кошик",
+    "your_balance": "Мій баланс",
+    "by_points": "Балами",
+    "use_points": "Списати",
+    "add_tip": "Додати чайові",
+    "points_will_earn": "Отримаєте після оплати",
+    "points_will_spend": "Буде списано",
+    "total": "До сплати",
+    "processing": "Обробка...",
+    "confirm_order": "Замовити",
+    "order_success_title": "Замовлення прийнято!",
+    "order_success_desc": "Офіціант вже поспішає до вас!",
+    "error_processing_order": "Помилка створення замовлення: ",
+    "scan_qr_prompt": "Будь ласка, відскануйте QR-код на столі, щоб зробити замовлення.",
+
+    "menu_categories": "Меню",
+    "search_placeholder": "Пошук напоїв та кальянів...",
+    "no_search_results": "За вашим запитом нічого не знайдено",
+    "top_sales": "Топ продажів",
+    "all_categories": "Усі",
+    "error_loading_categories": "Помилка завантаження категорій",
+    "no_products_found": "У цій категорії поки немає товарів",
+    "customize": "Зібрати",
+    "add_to_order": "Додати",
+    "out_of_stock": "Немає в наявності",
+    "allergens": "Інформація про алергени",
+    "no_allergens": "Алергени відсутні",
+    "available_for_points": "Доступно за бали",
+    "add_for": "Додати за",
+
+    "type_tobacco": "Тютюн",
+    "type_bowl": "Чаша",
+    "type_base": "Колба",
+    "type_alcohol": "Алкоголь",
+    "type_mixer": "Міксер",
+
+    "auth_required": "Потрібна авторизація",
+    "auth_fav_desc": "Увійдіть, щоб зберігати свої улюблені напої та кальяни.",
+    "no_favorites": "Ви ще не додали жодного товару в улюблене",
+    "auth_required_fav": "Будь ласка, авторизуйтесь, щоб додати товар в улюблене.",
+
+    "reviews": "Відгуки",
+    "write_review": "Написати",
+    "auth_required_review": "Увійдіть в профіль, щоб залишити відгук.",
+    "review_placeholder": "Поділіться враженнями...",
+    "sending": "Відправка...",
+    "send": "Надіслати",
+    "no_reviews": "Поки немає відгуків. Будьте першим!",
+    "anonymous": "Анонім",
+
+    "order_history": "Історія замовлень",
+    "no_orders": "У вас ще немає замовлень.",
+    "order_details": "Деталі замовлення",
+    "unknown_product": "Невідомий товар",
+    "status_pending": "Очікує",
+    "status_preparing": "Готується",
+    "status_completed": "Виконано",
+    "status_cancelled": "Скасовано",
+
+    "referral_program": "Запросити друга",
+    "referral_rules": "Поділися цим посиланням. Коли твій друг зробить своє перше замовлення, ти отримаєш 50 бонусів!",
+    "copy_link": "Копіювати",
+    "copied": "Скопійовано",
+    "share": "Поділитися",
+    "share_title": "Приєднуйся до Bar Poznan!",
+    "share_desc": "Зареєструйся за моїм посиланням і отримай бонуси на перше замовлення!",
+
+    "call_staff": "Покликати персонал",
+    "choose_staff_type": "Кого саме ви хочете покликати?",
+    "waiter": "Офіціанта",
+    "bartender": "Бармена",
+    "shisha_master": "Кальянного майстра",
+    "cooldown_active": "Зачекайте перед наступним викликом",
+    "please_wait": "Будь ласка, зачекайте",
+    "staff_called_success": "Персонал вже прямує до вас!",
+    "error_calling_staff": "Помилка виклику персоналу: ",
+
+    "language": "Мова",
+    "theme": "Тема",
+    "light_mode": "Світла",
+    "dark_mode": "Темна",
+    "about_us": "Про нас",
+    "legal_info": "Юридична інформація",
+    "address_title": "Адреса",
+    "hours_title": "Години роботи",
+    "terms_of_service": "Правила закладу",
+    "terms_short": "Правила",
+    "privacy_policy": "Конфіденційність",
+    "privacy_short": "Приватність",
+
+    "err_invalid_email": "Некоректний формат email",
+    "err_invalid_phone": "Введіть коректний номер телефону",
+    "err_password_short": "Пароль має бути не менше 6 символів",
+    "err_password_long": "Пароль занадто довгий",
+    "logout": "Вийти",
+    "confirm": "Підтвердити",
+"admin_panel": "Панель керування",
+"admin_products": "Товари",
+"admin_categories": "Категорії",
+"admin_staff": "Працівники",
+"admin_categories_title": "Категорії меню",
+"add": "Додати",
+"edit_category": "Редагувати категорію",
+"new_category": "Нова категорія",
+"name_pl_req": "Назва (Польська) *",
+"name_ua": "Назва (Укр)",
+"name_en": "Назва (Eng)",
+"slug_req": "Slug (напр. hookahs) *",
+"sort_order": "Сортування (0, 1...)",
+"save_changes": "Зберегти зміни",
+"create": "Створити",
+"delete_category_confirm": "Ви впевнені, що хочете видалити категорію",
+"pl_slug_required": "Польська назва та slug є обовʼязковими",
+"no_categories": "Категорій поки немає. Створіть першу!",
+"admin_staff_title": "Команда закладу",
+"no_phone": "Без телефону",
+"image_url_label": "Посилання на фото",
+"is_active_label": "Категорія активна (показувати в меню)",
+"inactive": "Приховано",
+"staff_email_placeholder": "Введіть email користувача...",
+"user_not_found": "Користувача з таким email не знайдено",
+"cannot_edit_admin": "Ви не можете змінити роль адміністратора",
+"remove_staff_confirm": "Забрати права працівника у цього користувача?",
+"promote_to_admin": "Зробити адміністратором",
+"demote_to_staff": "Понизити до працівника",
+"cannot_edit_self": "Ви не можете змінити роль самому собі",
+"user_already_team": "Цей користувач вже є в команді",
+"admin_products_title": "Товари меню",
+"admin_search_placeholder": "Пошук за назвою...",
+"all": "Всі",
+"edit_product": "Редагувати товар",
+"new_product": "Новий товар",
+"category": "Категорія",
+"price_settings": "Ціни та бонуси",
+"bonus_reward": "Нарахувати балів",
+"bonus_price": "Ціна в балах",
+"is_available_label": "В наявності",
+"is_constructor": "Конструктор (інгредієнти)",
+"comma_separated": "через кому",
+"fields_required": "Назва, ціна та категорія є обов'язковими",
+"delete_confirm": "Ви впевнені, що хочете видалити цей товар?",
+"hide": "Приховати",
+"show": "Показати",
+"admin_ingredients": "Інгредієнти",
+"admin_ingredients_title": "Інгредієнти (Конструктор)",
+"new_ingredient": "Новий інгредієнт",
+"ing_type": "Тип (категорія)",
+"price_extra": "Додаткова ціна (zł)",
+"is_free_selection": "Безкоштовний вибір",
+"is_free_desc": "Можна вибрати безкоштовно замість стандартного (напр. заміна молока)",
+"ing_fields_required": "Назва та тип є обов'язковими",
+"free_selection_badge": "Безкошт. вибір",
+"no_ingredients": "Інгредієнтів ще немає",
+"admin_tables": "Столики / QR",
+"admin_tables_title": "Управління столиками",
+"table_number_placeholder": "Номер столика (напр. 5)...",
+"table": "Стіл",
+"delete_table_confirm": "Видалити цей столик?",
+"link_copied": "Посилання скопійовано!",
+"admin_search_placeholder": "Пошук за назвою..."
+  }
+}
+</file>
+
+<file path="vercel.json">
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}
+</file>
+
+<file path="src/features/menu/ProductCard.tsx">
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Product } from '../../types/menu'
+import { Card, CardContent, CardFooter, CardHeader } from '../../components/ui/card'
+import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
+import { Info, Plus, Settings2, Award, Heart, Tag, ImageIcon, MessageSquare, ChevronDown } from 'lucide-react'
+import { useAppStore } from '../../store/useAppStore'
+import { useFavorites, useToggleFavorite } from '../../hooks/useFavorites'
+import { useProductStats } from '../../hooks/useProductStats'
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '../../components/ui/drawer'
+import { ProductReviews } from './ProductReviews'
+
+interface ProductCardProps {
+  product: Product
+}
+
+export function ProductCard({ product }: ProductCardProps) {
+  const { t, i18n } = useTranslation()
+  const { user, addToCart, setActiveConstructorProduct, showAlert } = useAppStore()
+  const { data: favorites } = useFavorites()
+  const { mutate: toggleFavorite } = useToggleFavorite()
+  const { data: stats } = useProductStats(product.id)
+  
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [showAllergens, setShowAllergens] = useState(false)
+  
+  const currentLang = (i18n.language || 'pl') as 'pl' | 'ua' | 'en'
+
+  const name = product.name?.[currentLang] || product.name?.pl || t('unknown_product')
+  const description = product.description?.[currentLang] || product.description?.pl || ''
+  const isFavorite = favorites?.includes(product.id)
+  const hasAllergens = product.allergens && product.allergens.length > 0
+  
+  const formattedPrice = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(product.price || 0)
+
+  const handleAction = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (product.is_constructor) {
+      setActiveConstructorProduct(product)
+      setIsDetailsOpen(false)
+    } else {
+      addToCart(product)
+      setIsDetailsOpen(false)
+    }
+  }
+
+  const handleFavoriteClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!user) {
+      // Спочатку закриваємо карточку товару!
+      setIsDetailsOpen(false)
+      // Чекаємо трохи, щоб анімація закриття пройшла, і показуємо алерт
+      setTimeout(() => {
+        showAlert(t('attention'), t('auth_required_fav'))
+      }, 300)
+      return
+    }
+    toggleFavorite({ productId: product.id, isFavorite: !!isFavorite })
+  }
+
+  return (
+    <>
+      <Card className="flex flex-col h-full overflow-hidden transition-all hover:border-primary/50 cursor-pointer relative" onClick={() => setIsDetailsOpen(true)}>
+        <button onClick={handleFavoriteClick} className="absolute top-2 right-2 z-20 p-2 bg-background/80 backdrop-blur-md rounded-full shadow-sm">
+          <Heart className={`h-4 w-4 transition-colors ${isFavorite ? 'fill-red-500 text-red-500' : 'text-foreground'}`} />
+        </button>
+
+        <div className="relative aspect-square w-full bg-muted shrink-0 overflow-hidden">
+          {product.image_url ? (
+            <>
+              {!imageLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center bg-secondary animate-pulse">
+                  <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                </div>
+              )}
+              <img 
+                src={product.image_url} 
+                alt={name} 
+                onLoad={() => setImageLoaded(true)}
+                className={`h-full w-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} 
+              />
+            </>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-secondary">
+              <span className="text-muted-foreground text-[10px] uppercase tracking-widest">Bar Poznan</span>
+            </div>
+          )}
+        </div>
+
+        <CardHeader className="p-4 pb-2">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-semibold text-lg leading-tight line-clamp-2">{name}</h3>
+            <span className="font-bold text-primary whitespace-nowrap">{formattedPrice}</span>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-4 pt-0 flex-grow flex flex-col">
+          <p className="text-sm text-muted-foreground line-clamp-2 flex-grow">{description}</p>
+          
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/50 text-muted-foreground">
+            <div className="flex items-center gap-1 text-xs font-medium">
+              <Heart className="h-3.5 w-3.5" /> 
+              {stats?.likesCount || 0}
+            </div>
+            <div className="flex items-center gap-1 text-xs font-medium">
+              <MessageSquare className="h-3.5 w-3.5" /> 
+              {stats?.reviewsCount || 0}
+            </div>
+          </div>
+        </CardContent>
+
+        <CardFooter className="p-4 pt-0 mt-auto shrink-0">
+          <Button className="w-full gap-2" disabled={!product.is_available} onClick={handleAction}>
+            {product.is_constructor ? <Settings2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {product.is_available ? (product.is_constructor ? t('customize') : t('add_to_order')) : t('out_of_stock')}
+          </Button>
+        </CardFooter>
+      </Card>
+
+      <Drawer open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        {/* Прибираємо жорсткий overflow-hidden з контейнера, щоб дати більше свободи */}
+        <DrawerContent className="max-h-[90vh] flex flex-col p-0">
+          
+          {/* Контент, що скролиться (ВКЛЮЧНО з фото) */}
+          <div className="flex-1 overflow-y-auto">
+            {product.image_url && (
+              <div className="w-full h-56 bg-muted relative shrink-0">
+                <img src={product.image_url} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
+            
+            <div className="p-4 space-y-5">
+              <DrawerHeader className="p-0 text-left">
+                <div className="flex justify-between items-start mb-2 gap-4">
+                  <DrawerTitle className="text-2xl">{name}</DrawerTitle>
+                  <span className="text-2xl font-bold text-primary shrink-0">{formattedPrice}</span>
+                </div>
+                <p className="text-muted-foreground leading-relaxed">{description}</p>
+              </DrawerHeader>
+
+              <div className="flex items-center gap-4 text-muted-foreground bg-secondary/30 p-3 rounded-lg">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  <Heart className="h-4 w-4 text-red-500" /> 
+                  {stats?.likesCount || 0}
+                </div>
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  <MessageSquare className="h-4 w-4 text-primary" /> 
+                  {stats?.reviewsCount || 0}
+                </div>
+              </div>
+
+              {product.tags && product.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {product.tags.map((tag) => (
+                    <Badge key={tag} variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1">
+                      <Tag className="h-3 w-3" />
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Алергени */}
+              <div className="bg-secondary/50 rounded-lg overflow-hidden transition-all">
+                <button 
+                  onClick={() => setShowAllergens(!showAllergens)}
+                  className="w-full flex items-center justify-between p-3 focus:outline-none hover:bg-secondary/70 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Info className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <span className="font-semibold text-sm">{t('allergens', 'Інформація про алергени')}</span>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${showAllergens ? 'rotate-180' : ''}`} />
+                </button>
+                {showAllergens && (
+                  <div className="p-3 pt-0 border-t border-border/50 text-sm text-muted-foreground animate-in fade-in slide-in-from-top-2">
+                    {hasAllergens ? product.allergens.join(', ') : t('no_allergens', 'Алергени відсутні')}
+                  </div>
+                )}
+              </div>
+
+              {product.bonus_price && (
+                <div className="flex items-center justify-between bg-primary/10 border border-primary/20 p-3 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Award className="h-5 w-5 text-primary" />
+                    <span className="font-medium text-sm">{t('available_for_points')}</span>
+                  </div>
+                  <span className="font-bold text-primary">{product.bonus_price} б.</span>
+                </div>
+              )}
+              
+              {/* Відгуки */}
+              <ProductReviews productId={product.id} />
+              
+              {/* Порожній простір знизу, щоб зручно було скролити під клавіатурою */}
+              <div className="h-8" /> 
+            </div>
+          </div>
+
+          {/* Статична кнопка "Додати" завжди знизу екрану */}
+          <DrawerFooter className="border-t border-border p-4 shrink-0 bg-background">
+            <Button className="w-full h-14 text-lg gap-2" disabled={!product.is_available} onClick={handleAction}>
+              {product.is_constructor ? <Settings2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              {product.is_available ? (product.is_constructor ? t('customize') : t('add_to_order')) : t('out_of_stock')}
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    </>
+  )
+}
 </file>
 
 </files>

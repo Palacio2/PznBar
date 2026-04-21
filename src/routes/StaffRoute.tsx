@@ -1,0 +1,21 @@
+import { Navigate, Outlet } from 'react-router-dom'
+import { useAppStore } from '../store/useAppStore'
+import { Loader2 } from 'lucide-react'
+
+export function StaffRoute() {
+  const { user, isAuthLoading } = useAppStore()
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!user || !['staff', 'admin', 'super_admin'].includes(user.role)) {
+    return <Navigate to="/" replace />
+  }
+
+  return <Outlet />
+}
