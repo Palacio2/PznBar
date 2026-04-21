@@ -10,14 +10,22 @@ import { FavoritesPage } from '../pages/FavoritesPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { AboutPage } from '../pages/AboutPage'
+import { LegalPage } from '../pages/LegalPage'
+
+import { AdminDashboardPage } from '../features/admin/AdminDashboardPage'
+import { StaffDashboardPage } from '../features/staff/StaffDashboardPage'
+import { AdminGuard } from '../features/admin/AdminGuard'
 
 import { BottomNav } from '../layouts/BottomNav'
 import { CartDrawer } from '../features/cart/CartDrawer'
 import { CallStaffDrawer } from '../features/service/CallStaffDrawer'
 import { ConstructorDrawer } from '../features/constructor/ConstructorDrawer'
 import { AgeVerificationModal } from '../features/auth/AgeVerificationModal'
-import { LegalPage } from '../pages/LegalPage'
 import { GlobalAlert } from '../components/ui/GlobalAlert'
+import { AdminCategoriesPage } from '../features/admin/AdminCategoriesPage'
+import { AdminProductsPage } from '../features/admin/AdminProductsPage'
+import { AdminStaffPage } from '../features/admin/AdminStaffPage'
+import { AdminTablesPage } from '../features/admin/AdminTablesPage'
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const [searchParams] = useSearchParams()
@@ -69,6 +77,56 @@ export function AppRoutes() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/legal" element={<LegalPage />} />
         <Route path="/about" element={<AboutPage />} />
+
+        <Route 
+          path="/staff/*" 
+          element={
+            <AdminGuard allowedRoles={['staff', 'admin', 'super_admin']}>
+              <StaffDashboardPage />
+            </AdminGuard>
+          } 
+        />
+        
+        <Route 
+          path="/admin" 
+          element={
+            <AdminGuard allowedRoles={['admin', 'super_admin']}>
+              <AdminDashboardPage />
+            </AdminGuard>
+          } 
+        />
+        <Route 
+          path="/admin/categories" 
+          element={
+            <AdminGuard allowedRoles={['admin', 'super_admin']}>
+              <AdminCategoriesPage />
+            </AdminGuard>
+          } 
+        />
+        <Route 
+          path="/admin/products" 
+          element={
+            <AdminGuard allowedRoles={['admin', 'super_admin']}>
+              <AdminProductsPage />
+            </AdminGuard>
+          } 
+        />
+        <Route 
+          path="/admin/tables" 
+          element={
+            <AdminGuard allowedRoles={['admin', 'super_admin']}>
+              <AdminTablesPage />
+            </AdminGuard>
+          } 
+        />
+        <Route 
+          path="/admin/staff" 
+          element={
+            <AdminGuard allowedRoles={['admin', 'super_admin']}>
+              <AdminStaffPage />
+            </AdminGuard>
+          } 
+        />
       </Routes>
     </AppLayout>
   )

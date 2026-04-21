@@ -10,6 +10,7 @@ export interface Category {
   slug: string
   image_url: string
   sort_order: number
+  is_active: boolean // <--- Додали це поле
 }
 
 export interface Product {
@@ -36,9 +37,13 @@ export interface Ingredient {
   is_available: boolean
 }
 
+export type UserRole = 'user' | 'staff' | 'admin' | 'super_admin'
+
 export interface UserProfile {
   id: string
   phone: string | null
+  email: string | null
   bonus_points: number
   referral_code: string
+  role: UserRole
 }
