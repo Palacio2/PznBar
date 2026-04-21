@@ -1,18 +1,29 @@
-# Logs
+# Секрети (API ключі Supabase) - НАЙВАЖЛИВІШЕ
+.env
+.env.local
+.env.*.local
+*.local
+
+# Залежності
+node_modules
+.pnp
+.pnp.js
+
+# Збірка
+dist
+dist-ssr
+*.com
+*.exe
+
+# Логи
 logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# Редактори (VS Code, JetBrains)
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -22,3 +33,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Тести та кеш
+.cache
+.eslintcache
