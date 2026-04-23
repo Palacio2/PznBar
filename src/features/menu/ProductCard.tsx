@@ -27,6 +27,7 @@ export function ProductCard({ product }: ProductCardProps) {
   
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false) // ДОДАНО СТЕЙТ ПОМИЛКИ
   const [showAllergens, setShowAllergens] = useState(false)
   
   const name = getLocalizedText(product.name, t('unknown_product'))
@@ -66,7 +67,7 @@ export function ProductCard({ product }: ProductCardProps) {
         </button>
 
         <div className="relative aspect-square w-full bg-muted shrink-0 overflow-hidden">
-          {product.image_url ? (
+          {product.image_url && !imageError ? (
             <>
               {!imageLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center bg-secondary animate-pulse">
@@ -77,6 +78,7 @@ export function ProductCard({ product }: ProductCardProps) {
                 src={product.image_url} 
                 alt={name} 
                 onLoad={() => setImageLoaded(true)}
+                onError={() => setImageError(true)} // ОБРОБКА ПОМИЛКИ
                 className={`h-full w-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} 
               />
             </>
@@ -120,9 +122,9 @@ export function ProductCard({ product }: ProductCardProps) {
       <Drawer open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <DrawerContent className="max-h-[90vh] flex flex-col p-0">
           <div className="flex-1 overflow-y-auto">
-            {product.image_url && (
+            {product.image_url && !imageError && (
               <div className="w-full h-56 bg-muted relative shrink-0">
-                <img src={product.image_url} alt={name} className="w-full h-full object-cover" />
+                <img src={product.image_url} alt={name} className="w-full h-full object-cover" onError={() => setImageError(true)} />
               </div>
             )}
             

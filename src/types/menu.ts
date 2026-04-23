@@ -35,6 +35,8 @@ export interface Ingredient {
   price_extra: number
   is_free_selection: boolean
   is_available: boolean
+  category_constraint: string | null
+  created_at?: string
 }
 
 export type UserRole = 'user' | 'staff' | 'admin' | 'super_admin'

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { QrCode, LayoutGrid, Coffee, Users, ShieldAlert } from 'lucide-react'
+import { QrCode, LayoutGrid, Coffee, Users, ShieldAlert, Grape } from 'lucide-react'
 
 export function AdminDashboardPage() {
   const { t } = useTranslation()
@@ -22,10 +22,17 @@ export function AdminDashboardPage() {
     },
     {
       title: t('admin_products', 'Продукти'),
-      desc: t('admin_products_desc', 'Товари, ціни, інгредієнти'),
+      desc: t('admin_products_desc', 'Товари, ціни, налаштування'),
       icon: <Coffee className="h-8 w-8 text-orange-500" />,
       path: '/admin/products',
       color: 'bg-orange-500/10 border-orange-500/20'
+    },
+    {
+      title: t('admin_ingredients', 'Інгредієнти'),
+      desc: t('admin_ingredients_desc', 'Тютюн, алкоголь для конструктора'),
+      icon: <Grape className="h-8 w-8 text-pink-500" />,
+      path: '/admin/ingredients',
+      color: 'bg-pink-500/10 border-pink-500/20'
     },
     {
       title: t('admin_staff', 'Персонал'),

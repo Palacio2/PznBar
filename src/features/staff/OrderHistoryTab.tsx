@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { History, Wallet, ChevronLeft, ChevronRight, User, Calendar, Phone, Mail, Clock, ChevronDown } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { formatPrice } from '../../lib/utils'
+import { Button } from '../../components/ui/button' // <-- ДОДАНО ЦЕЙ ІМПОРТ
 
-// Нова функція для правильного отримання локальної дати (ігноруючи UTC)
 const getLocalYYYYMMDD = (d: Date) => {
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
@@ -16,7 +16,6 @@ export function OrderHistoryTab({ useOrderHistory, getProductName }: any) {
   const { t } = useTranslation()
   const { user: currentUser } = useAppStore()
   
-  // Використовуємо локальний час
   const [date, setDate] = useState(getLocalYYYYMMDD(new Date()))
   const { data: history, isLoading } = useOrderHistory(date)
 
@@ -29,112 +28,121 @@ export function OrderHistoryTab({ useOrderHistory, getProductName }: any) {
     setDate(getLocalYYYYMMDD(d))
   }
 
-  const completedOrders = history?.filter((o: any) => o.status === 'completed') || []
-  const totalRevenue = completedOrders.reduce((sum: number, o: any) => sum + o.total_price, 0)
-  const totalTips = completedOrders.reduce((sum: number, o: any) => sum + o.tip_amount, 0)
+  const getTotalStats = () => {
+    if (!history) return { orders: 0, revenue: 0, points: 0 }
+    return history.reduce((acc: any, order: any) => {
+      if (order.status === 'completed') {
+        acc.orders += 1
+        acc.revenue += order.total_price
+        acc.points += order.points_used
+      }
+      return acc
+    }, { orders: 0, revenue: 0, points: 0 })
+  }
 
-  // Перевірка, чи це сьогоднішній день (щоб вимкнути стрілку "вперед")
-  const isToday = date === getLocalYYYYMMDD(new Date())
+  const stats = getTotalStats()
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between bg-secondary/50 p-2 rounded-2xl border border-border shadow-sm">
-        <button className="p-2 hover:bg-secondary rounded-lg transition-colors" onClick={() => changeDate(-1)}>
-          <ChevronLeft className="h-6 w-6" />
-        </button>
-        
-        <label className="relative flex items-center justify-center bg-background px-4 py-3 rounded-xl border border-border cursor-pointer flex-1 mx-2 shadow-sm hover:bg-secondary/30 transition-colors">
-           <Calendar className="h-5 w-5 mr-2 text-primary shrink-0" />
-           <input 
-             type="date" 
-             value={date} 
-             onChange={(e) => setDate(e.target.value)}
-             className="bg-transparent font-bold text-sm outline-none cursor-pointer w-full text-center appearance-none"
-           />
-        </label>
-        
-        <button 
-          className={`p-2 rounded-lg transition-colors ${isToday ? 'opacity-30 cursor-not-allowed' : 'hover:bg-secondary'}`} 
-          onClick={() => !isToday && changeDate(1)} 
-          disabled={isToday}
-        >
-          <ChevronRight className="h-6 w-6" />
-        </button>
+      <div className="flex items-center justify-between bg-card p-2 rounded-2xl border-2 border-border/50 shadow-sm">
+        <Button variant="ghost" size="icon" onClick={() => changeDate(-1)} className="h-10 w-10 rounded-xl hover:bg-secondary">
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex items-center gap-2 font-bold text-primary">
+          <Calendar className="h-4 w-4" />
+          {date}
+        </div>
+        <Button variant="ghost" size="icon" onClick={() => changeDate(1)} className="h-10 w-10 rounded-xl hover:bg-secondary" disabled={date === getLocalYYYYMMDD(new Date())}>
+          <ChevronRight className="h-5 w-5" />
+        </Button>
       </div>
 
       {isAdmin && (
-        <div className="bg-primary/10 border border-primary/20 p-5 rounded-2xl flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-4">
-            <Wallet className="h-10 w-10 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">{t('revenue', 'Каса за день')}</p>
-              <p className="text-2xl font-black text-primary">{formatPrice(totalRevenue)}</p>
-            </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-card border border-border/50 p-3 rounded-xl flex flex-col items-center justify-center text-center shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t('total_orders', 'Замовлень')}</span>
+            <span className="text-xl font-black text-primary leading-none">{stats.orders}</span>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] text-muted-foreground uppercase font-bold">{t('tips', 'Чайові')}</p>
-            <p className="text-lg font-bold text-green-500">{formatPrice(totalTips)}</p>
+          <div className="bg-card border border-border/50 p-3 rounded-xl flex flex-col items-center justify-center text-center shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t('revenue', 'Виторг')}</span>
+            <span className="text-xl font-black text-green-500 leading-none">{formatPrice(stats.revenue)}</span>
+          </div>
+          <div className="bg-card border border-border/50 p-3 rounded-xl flex flex-col items-center justify-center text-center shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t('points_used', 'Списано б.')}</span>
+            <span className="text-xl font-black text-orange-500 leading-none">{stats.points}</span>
           </div>
         </div>
       )}
 
       {isLoading ? (
         <p className="text-center text-muted-foreground py-8">{t('loading', 'Завантаження...')}</p>
-      ) : history?.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <History className="h-12 w-12 mx-auto mb-3 opacity-20" />
-          <p className="font-bold">{t('no_history', 'Немає історії за цей день')}</p>
+      ) : !history || history.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <History className="h-16 w-16 mx-auto mb-4 opacity-20" />
+          <p className="text-lg font-bold">{t('no_orders_date', 'Немає замовлень за цю дату')}</p>
         </div>
       ) : (
-        history?.map((order: any) => (
-          <div key={order.id} className={`bg-card border rounded-2xl shadow-sm p-4 flex flex-col ${order.status === 'cancelled' ? 'opacity-60 bg-secondary/10' : ''}`}>
-            
-            <div className="flex justify-between items-start mb-3 border-b border-border/50 pb-4">
-              <div className="flex flex-col gap-2">
-                <span className="text-xl font-black uppercase tracking-widest text-primary leading-none">
-                  {t('table', 'Стіл')} {order.table_id}
-                </span>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md w-fit">
-                  <Clock className="h-3 w-3" />
-                  {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        <div className="space-y-3">
+          {history.map((order: any) => (
+            <div key={order.id} className="bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+              <div className="flex justify-between items-start">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xl font-black text-primary leading-none">{t('table', 'Стіл')} {order.table_id}</span>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" />
+                    {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
                 </div>
-              </div>
-              <div className="text-right flex flex-col items-end gap-1">
-                <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${order.status === 'completed' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-destructive/10 text-destructive border border-destructive/20'}`}>
-                  {order.status === 'completed' ? 'Виконано' : 'Скасовано'}
-                </span>
-                <p className="font-black mt-1 text-xl">{formatPrice(order.total_price)}</p>
-              </div>
-            </div>
-
-            <details className="group text-xs text-muted-foreground bg-secondary/20 rounded-lg border border-border/50 mb-4 cursor-pointer transition-all">
-              <summary className="p-2.5 font-semibold flex items-center justify-between hover:bg-secondary/40 transition-colors list-none [&::-webkit-details-marker]:hidden">
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" /> 
-                  <span>{t('client_contacts', 'Контакти клієнта')}</span>
-                </div>
-                <ChevronDown className="h-4 w-4 opacity-50 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="p-2.5 pt-0 flex flex-col gap-2 border-t border-border/50 mt-1">
-                {order.profiles?.phone && <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-primary" /> <span className="font-medium text-foreground">{order.profiles.phone}</span></div>}
-                {order.profiles?.email && <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-primary" /> <span className="font-medium text-foreground">{order.profiles.email}</span></div>}
-                {!order.profiles?.phone && !order.profiles?.email && <div className="italic">Гість без збережених контактів</div>}
-              </div>
-            </details>
-
-            <div className="space-y-2">
-              {order.items.map((item: any, idx: number) => (
-                <div key={idx} className="flex justify-between text-sm">
-                  <span className="font-medium">{item.quantity}x {getProductName(item.product_id)}</span>
-                  <span className="text-muted-foreground font-semibold">
-                    {item.price === 0 ? t('by_points', 'Балами') : formatPrice(item.price * item.quantity)}
+                <div className="text-right">
+                  <p className="font-bold text-lg leading-none">{formatPrice(order.total_price)}</p>
+                  <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full mt-1 inline-block ${
+                    order.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-destructive/10 text-destructive'
+                  }`}>
+                    {order.status === 'completed' ? t('completed', 'Виконано') : t('cancelled', 'Скасовано')}
                   </span>
                 </div>
-              ))}
-            </div>
+              </div>
 
-          </div>
-        ))
+              <details className="group text-sm bg-secondary/30 rounded-xl overflow-hidden">
+                <summary className="p-2.5 font-semibold flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-primary" /> 
+                    <span>{t('client_contacts', 'Контакти клієнта')}</span>
+                  </div>
+                  <ChevronDown className="h-4 w-4 opacity-50 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="p-2.5 pt-0 flex flex-col gap-2 border-t border-border/50 mt-1">
+                  {order.profiles?.phone && <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-primary" /> <span className="font-medium text-foreground">{order.profiles.phone}</span></div>}
+                  {order.profiles?.email && <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-primary" /> <span className="font-medium text-foreground">{order.profiles.email}</span></div>}
+                  {!order.profiles?.phone && !order.profiles?.email && <div className="italic">{t('no_saved_contacts', 'Гість без збережених контактів')}</div>}
+                </div>
+              </details>
+
+              <div className="space-y-2">
+                {order.items.map((item: any, idx: number) => (
+                  <div key={idx} className="flex justify-between text-sm">
+                    <span className="font-medium">{item.quantity}x {getProductName(item.product_id)}</span>
+                    <span className="text-muted-foreground font-semibold">
+                      {item.price === 0 ? t('by_points', 'Балами') : formatPrice(item.price * item.quantity)}
+                    </span>
+                  </div>
+                ))}
+                {order.tip_amount > 0 && (
+                  <div className="flex justify-between text-sm pt-1 border-t border-border/50">
+                    <span className="font-medium">{t('tips', 'Чайові')}</span>
+                    <span className="text-orange-500 font-bold">+{formatPrice(order.tip_amount)}</span>
+                  </div>
+                )}
+                {order.points_used > 0 && (
+                  <div className="flex justify-between text-sm text-primary pt-1">
+                    <span className="font-medium flex items-center gap-1"><Wallet className="h-3.5 w-3.5"/> {t('paid_with_points', 'Оплачено балами')}</span>
+                    <span className="font-bold">-{order.points_used}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

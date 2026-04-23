@@ -1,14 +1,43 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router-dom'
 import { UtensilsCrossed, Heart, User, Settings, ShieldAlert, ClipboardList, MapPin } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
+import { supabase } from '../api/supabase'
+import { useStaffBadges } from '../hooks/useStaffDashboard' // Імпортували хук
 
 export function BottomNav() {
   const { t } = useTranslation()
-  const { user, tableId } = useAppStore() // Дістаємо tableId зі стору
+  const { user, tableId, setTableId, clearCart, showAlert } = useAppStore()
 
   const isStaff = user?.role === 'staff' || user?.role === 'admin' || user?.role === 'super_admin'
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+
+  // Витягуємо лічильник для бейджика (спрацює тільки якщо це персонал)
+  const { totalBadges } = useStaffBadges(!!isStaff)
+
+  useEffect(() => {
+    if (!tableId) return
+
+    const channel = supabase.channel(`table-${tableId}-session`)
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'tables' 
+      }, (payload) => {
+        if (payload.new.number === tableId || payload.new.number === Number(tableId)) {
+          showAlert(
+            t('attention', 'Увага'), 
+            t('session_ended', 'Ваш стіл було звільнено персоналом. Дякуємо за візит!')
+          )
+          setTableId(null)
+          clearCart()
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [tableId, setTableId, clearCart, showAlert, t])
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/90 px-2 pb-safe pt-2 backdrop-blur-md overflow-visible hide-scrollbar">
@@ -39,7 +68,14 @@ export function BottomNav() {
 
         {isStaff && (
           <NavLink to="/staff" className={({ isActive }) => `flex flex-col items-center gap-1 transition-colors shrink-0 ${isActive ? 'text-orange-500' : 'text-muted-foreground hover:text-orange-500'}`}>
-            <ClipboardList className="h-6 w-6" />
+            <div className="relative">
+              <ClipboardList className="h-6 w-6" />
+              {totalBadges > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-black text-white shadow-sm animate-pulse">
+                  {totalBadges}
+                </span>
+              )}
+            </div>
             <span className="text-[10px] font-medium uppercase tracking-wider">{t('nav_staff', 'Робота')}</span>
           </NavLink>
         )}

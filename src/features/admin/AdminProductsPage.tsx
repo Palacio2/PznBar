@@ -5,6 +5,7 @@ import { ChevronLeft, Plus, Coffee, Trash2, Power, Edit2, ImageIcon } from 'luci
 import { useCategories } from '../../hooks/useMenu'
 import { useAdminMenu } from '../../hooks/useAdminMenu'
 import { useTranslationHelpers } from '../../hooks/useTranslationHelpers'
+import { useImageUpload } from '../../hooks/useImageUpload' // ДОДАНО
 import { Product } from '../../types/menu'
 import { formatPrice } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
@@ -19,6 +20,9 @@ export function AdminProductsPage() {
   
   const { useAdminProducts, createProduct, updateProduct, deleteProduct } = useAdminMenu()
   const { data: products, isLoading } = useAdminProducts()
+
+  // ДОДАНО ХУК ЗАВАНТАЖЕННЯ
+  const { uploadImage, isUploading, uploadError } = useImageUpload()
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -154,19 +158,43 @@ export function AdminProductsPage() {
           </DrawerHeader>
           <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
             
-            <div className="flex flex-col items-center justify-center space-y-2">
-              <div className="h-32 w-32 bg-muted rounded-2xl overflow-hidden border-2 border-dashed border-border flex items-center justify-center relative">
+            {/* ОНОВЛЕНО: Блок завантаження картинки */}
+            <div className="flex flex-col items-center justify-center space-y-2 mb-2">
+              <div className="h-32 w-32 bg-muted rounded-3xl overflow-hidden border-2 border-dashed border-border flex items-center justify-center relative group cursor-pointer hover:border-primary transition-colors">
                 {formData.imageUrl ? (
-                  <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                  <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover group-hover:opacity-50 transition-opacity" />
                 ) : (
-                  <ImageIcon className="h-10 w-10 text-muted-foreground/30" />
+                  <ImageIcon className="h-10 w-10 text-muted-foreground/30 group-hover:scale-110 transition-transform" />
                 )}
+                
+                {isUploading && (
+                  <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-10">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  </div>
+                )}
+                
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="absolute inset-0 opacity-0 cursor-pointer z-20 w-full h-full"
+                  disabled={isUploading}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      const url = await uploadImage(file)
+                      if (url) setFormData({ ...formData, imageUrl: url })
+                    }
+                  }}
+                />
               </div>
-              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{t('preview', 'Попередній перегляд')}</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest text-center">
+                {t('preview', 'Натисніть щоб завантажити')}
+              </p>
+              {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-muted-foreground">{t('image_url', 'URL Зображення')}</label>
+              <label className="text-xs font-semibold text-muted-foreground">{t('image_url', 'URL Зображення (Або завантажте вище)')}</label>
               <Input 
                 value={formData.imageUrl} 
                 onChange={e => setFormData({ ...formData, imageUrl: e.target.value })} 
@@ -211,7 +239,7 @@ export function AdminProductsPage() {
           <DrawerFooter>
             <Button 
               onClick={handleSubmit} 
-              disabled={!formData.categoryId || !formData.namePl || formData.price < 0 || createProduct.isPending || updateProduct.isPending}
+              disabled={!formData.categoryId || !formData.namePl || formData.price < 0 || createProduct.isPending || updateProduct.isPending || isUploading}
             >
               {editingId ? t('save_changes', 'Зберегти зміни') : t('create_product', 'Створити продукт')}
             </Button>

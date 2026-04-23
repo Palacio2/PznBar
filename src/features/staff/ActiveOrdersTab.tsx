@@ -13,7 +13,7 @@ export function ActiveOrdersTab({ orders, isLoading, updateOrderStatus, getProdu
       <div className="text-center py-16 text-muted-foreground flex flex-col items-center">
         <ClipboardList className="h-16 w-16 mb-4 opacity-20" />
         <p className="text-lg font-bold">{t('no_active_orders', 'Немає активних замовлень')}</p>
-        <p className="text-sm opacity-50 mt-2">Коли клієнт зробить замовлення, воно з'явиться тут</p>
+        <p className="text-sm opacity-50 mt-2">{t('no_active_orders_desc', "Коли клієнт зробить замовлення, воно з'явиться тут")}</p>
       </div>
     )
   }
@@ -36,11 +36,10 @@ export function ActiveOrdersTab({ orders, isLoading, updateOrderStatus, getProdu
               </div>
               <div className="text-right flex flex-col items-end gap-1">
                 <p className="font-black text-2xl leading-none">{formatPrice(order.total_price)}</p>
-                {order.tip_amount > 0 && <p className="text-sm font-bold text-orange-500 mt-1">+{formatPrice(order.tip_amount)} чайові</p>}
+                {order.tip_amount > 0 && <p className="text-sm font-bold text-orange-500 mt-1">+{formatPrice(order.tip_amount)} {t('tips', 'чайові')}</p>}
               </div>
             </div>
 
-            {/* Випадаючий список контактів клієнта (Закритий по дефолту) */}
             <details className="group text-sm text-muted-foreground bg-background rounded-xl border border-border/50 shadow-inner overflow-hidden cursor-pointer transition-all">
               <summary className="p-3 font-semibold flex items-center justify-between hover:bg-secondary/20 transition-colors list-none [&::-webkit-details-marker]:hidden">
                 <div className="flex items-center gap-2">
@@ -63,7 +62,7 @@ export function ActiveOrdersTab({ orders, isLoading, updateOrderStatus, getProdu
                       </div>
                     )}
                     {!order.profiles.phone && !order.profiles.email && (
-                      <div className="italic">Немає збережених контактів</div>
+                      <div className="italic">{t('no_saved_contacts', 'Немає збережених контактів')}</div>
                     )}
                   </>
                 ) : (
@@ -93,22 +92,23 @@ export function ActiveOrdersTab({ orders, isLoading, updateOrderStatus, getProdu
           <div className="p-3 bg-secondary/20 border-t border-border flex gap-3">
             <Button 
               variant="outline" 
-              className="flex-1 h-14 border-destructive/30 text-destructive hover:bg-destructive hover:text-white text-base font-bold"
+              className="flex-1 h-12 border-destructive/30 text-destructive hover:bg-destructive hover:text-white text-sm font-bold"
               onClick={() => updateOrderStatus.mutate({ id: order.id, status: 'cancelled' })}
               disabled={updateOrderStatus.isPending}
             >
-              <XCircle className="h-5 w-5 mr-2" />
-              Скасувати
+              <XCircle className="h-4 w-4 mr-2" />
+              {t('cancel_order', 'Скасувати')}
             </Button>
             <Button 
-              className="flex-[2] h-14 bg-green-500 hover:bg-green-600 text-white text-base font-bold shadow-lg"
+              className="flex-[2] h-12 bg-green-500 hover:bg-green-600 text-white text-sm font-bold shadow-lg"
               onClick={() => updateOrderStatus.mutate({ id: order.id, status: 'completed' })}
               disabled={updateOrderStatus.isPending}
             >
-              <CheckCircle2 className="h-5 w-5 mr-2" />
-              ВИКОНАНО
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              {t('complete_order', 'ВИКОНАНО')}
             </Button>
           </div>
+
         </div>
       ))}
     </div>

@@ -20,21 +20,24 @@ export function ConstructorDrawer() {
   const { data: ingredients } = useIngredients()
   const [selectedIngredients, setSelectedIngredients] = useState<Ingredient[]>([])
 
-  const groupedIngredients = useMemo(() => {
+const groupedIngredients = useMemo(() => {
     if (!ingredients || !activeConstructorProduct || !categories) return {}
     
     const category = categories.find(c => c.id === activeConstructorProduct.category_id)
     if (!category) return {}
 
-    const isHookah = CATEGORY_SLUGS.HOOKAH.includes(category.slug)
-    const isCocktail = CATEGORY_SLUGS.COCKTAIL.includes(category.slug)
+    // Додаємо (as readonly string[]) щоб TypeScript не сварився на .includes()
+    const isHookah = (CATEGORY_SLUGS.HOOKAH as readonly string[]).includes(category.slug)
+    const isCocktail = (CATEGORY_SLUGS.COCKTAIL as readonly string[]).includes(category.slug)
 
-    let allowedTypes: string[] = []
+    // Додаємо readonly сюди
+    let allowedTypes: readonly string[] = []
     if (isHookah) allowedTypes = INGREDIENT_TYPES.HOOKAH
     if (isCocktail) allowedTypes = INGREDIENT_TYPES.COCKTAIL
 
     return ingredients
       .filter(ing => allowedTypes.includes(ing.type))
+      .filter(ing => !ing.category_constraint || ing.category_constraint === category.slug)
       .reduce((acc, curr) => {
         if (!acc[curr.type]) acc[curr.type] = []
         acc[curr.type].push(curr)
@@ -73,7 +76,7 @@ export function ConstructorDrawer() {
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader>
           <DrawerTitle className="text-xl">
-            {getLocalizedText(activeConstructorProduct.name, t('custom_product'))}
+            {getLocalizedText(activeConstructorProduct.name, t('custom_product', 'Свій продукт'))}
           </DrawerTitle>
         </DrawerHeader>
         <div className="p-4 overflow-y-auto space-y-6 pb-24">
@@ -92,7 +95,7 @@ export function ConstructorDrawer() {
                       }`}
                     >
                       <span className="text-sm font-medium">{getLocalizedText(ing.name, t('ingredient'))}</span>
-                      {ing.price_extra > 0 && <Badge variant="secondary" className="text-[10px]">+{ing.price_extra}</Badge>}
+                      {ing.price_extra > 0 && <Badge variant="secondary" className="text-[10px]">+{formatPrice(ing.price_extra)}</Badge>}
                     </button>
                   )
                 })}
@@ -101,8 +104,8 @@ export function ConstructorDrawer() {
           ))}
         </div>
         <DrawerFooter className="absolute bottom-0 w-full bg-background/95 backdrop-blur-md border-t p-4">
-          <Button className="w-full h-14 text-lg" onClick={handleAdd}>
-            {t('add_for')} {formatPrice(totalPrice)}
+          <Button className="w-full h-14 text-lg font-bold" onClick={handleAdd}>
+            {t('add_for', 'Додати за')} {formatPrice(totalPrice)}
           </Button>
         </DrawerFooter>
       </DrawerContent>

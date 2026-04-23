@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useCallback } from 'react'
 import { supabase } from '../api/supabase'
+import { ORDER_STATUSES, CALL_STATUSES } from '../lib/constants'
 
 export interface OrderItem {
   product_id: string
@@ -16,7 +17,7 @@ export interface Order {
   table_id: string
   total_price: number
   tip_amount: number
-  status: 'pending' | 'completed' | 'cancelled'
+  status: typeof ORDER_STATUSES[keyof typeof ORDER_STATUSES]
   items: OrderItem[]
   created_at: string
   points_earned: number
@@ -31,7 +32,7 @@ export interface ServiceCall {
   id: string
   table_id: string
   type: 'waiter' | 'barman' | 'shisha'
-  status: 'new' | 'completed'
+  status: typeof CALL_STATUSES[keyof typeof CALL_STATUSES]
   created_at: string
 }
 
@@ -79,14 +80,14 @@ export function useStaffDashboard() {
   const useActiveOrders = () => useQuery({
     queryKey: ['staff-orders'],
     queryFn: () => fetchOrdersWithProfiles(
-      supabase.from('orders').select('*').eq('status', 'pending').order('created_at', { ascending: true })
+      // ВИКОРИСТОВУЄМО КОНСТАНТУ
+      supabase.from('orders').select('*').eq('status', ORDER_STATUSES.PENDING).order('created_at', { ascending: true })
     )
   })
 
-const useOrderHistory = (dateStr: string) => useQuery({
+  const useOrderHistory = (dateStr: string) => useQuery({
     queryKey: ['staff-history', dateStr],
     queryFn: async () => {
-      // Надійно парсимо локальну дату (без зсувів UTC)
       const [year, month, day] = dateStr.split('-').map(Number)
       const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0)
       const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999)
@@ -94,7 +95,7 @@ const useOrderHistory = (dateStr: string) => useQuery({
       return fetchOrdersWithProfiles(
         supabase.from('orders')
           .select('*')
-          .neq('status', 'pending')
+          .neq('status', ORDER_STATUSES.PENDING) // ВИКОРИСТОВУЄМО КОНСТАНТУ
           .gte('created_at', startOfDay.toISOString())
           .lte('created_at', endOfDay.toISOString())
           .order('created_at', { ascending: false })
@@ -108,15 +109,27 @@ const useOrderHistory = (dateStr: string) => useQuery({
       const { data, error } = await supabase
         .from('service_calls')
         .select('*')
-        .eq('status', 'new')
+        .eq('status', CALL_STATUSES.NEW) // ВИКОРИСТОВУЄМО КОНСТАНТУ
         .order('created_at', { ascending: true })
       if (error) throw error
       return data as ServiceCall[]
     }
   })
 
+  const useStaffTables = () => useQuery({
+    queryKey: ['staff-tables'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tables')
+        .select('*')
+        .order('number', { ascending: true })
+      if (error) throw error
+      return data
+    }
+  })
+
   const updateOrderStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: 'completed' | 'cancelled' | 'pending' }) => {
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase.from('orders').update({ status }).eq('id', id)
       if (error) throw error
     },
@@ -128,14 +141,38 @@ const useOrderHistory = (dateStr: string) => useQuery({
 
   const resolveCall = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('service_calls').update({ status: 'completed' }).eq('id', id)
+      const { error } = await supabase.from('service_calls').update({ status: CALL_STATUSES.COMPLETED }).eq('id', id)
       if (error) throw error
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['staff-calls'] })
   })
 
+  const clearTableSession = useMutation({
+    mutationFn: async (tableNumber: string) => {
+      const newSessionId = crypto.randomUUID()
+      const { error } = await supabase
+        .from('tables')
+        .update({ session_id: newSessionId })
+        .eq('number', tableNumber)
+      
+      if (error) throw error
+
+      await supabase
+        .from('service_calls')
+        .update({ status: CALL_STATUSES.COMPLETED })
+        .eq('table_id', tableNumber)
+        .eq('status', CALL_STATUSES.NEW)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staff-calls'] })
+    }
+  })
+
   useEffect(() => {
-    const channel = supabase.channel('staff_dashboard')
+    // МАГІЯ: Унікальний канал для захисту від крашу в React Strict Mode
+    const channelId = `staff_dashboard_${Date.now()}`
+    
+    const channel = supabase.channel(channelId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
         queryClient.invalidateQueries({ queryKey: ['staff-orders'] })
         playNotificationSound()
@@ -161,6 +198,53 @@ const useOrderHistory = (dateStr: string) => useQuery({
     useOrderHistory,
     useActiveCalls,
     updateOrderStatus,
-    resolveCall
+    resolveCall,
+    clearTableSession,
+    useStaffTables
+  }
+}
+
+export function useStaffBadges(isStaff: boolean) {
+  const queryClient = useQueryClient()
+
+  const ordersQuery = useQuery({
+    queryKey: ['staff-badge-orders'],
+    queryFn: async () => {
+      const { count, error } = await supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', ORDER_STATUSES.PENDING)
+      if (error) throw error
+      return count || 0
+    },
+    enabled: !!isStaff
+  })
+
+  const callsQuery = useQuery({
+    queryKey: ['staff-badge-calls'],
+    queryFn: async () => {
+      const { count, error } = await supabase.from('service_calls').select('*', { count: 'exact', head: true }).eq('status', CALL_STATUSES.NEW)
+      if (error) throw error
+      return count || 0
+    },
+    enabled: !!isStaff
+  })
+
+  useEffect(() => {
+    if (!isStaff) return
+    // МАГІЯ: Унікальний канал
+    const channelId = `global_staff_badges_${Date.now()}`
+    
+    const channel = supabase.channel(channelId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['staff-badge-orders'] })
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_calls' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['staff-badge-calls'] })
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [isStaff, queryClient])
+
+  return {
+    totalBadges: (ordersQuery.data || 0) + (callsQuery.data || 0)
   }
 }
